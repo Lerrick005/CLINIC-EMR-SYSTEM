@@ -1,0 +1,37 @@
+{
+    "name": "clinic-emr-backend",
+    "version": "1.0.0",
+    "scripts": {
+        "start": "node src/app.js",
+        "dev": "nodemon src/app.js",
+        "migrate": "knex migrate:latest",
+        "seed": "knex seed:run"
+    },
+    "dependencies": {
+        "axios": "^1.18.1",
+        "bcrypt": "^5.1.1",
+        "bcryptjs": "^3.0.3",
+        "compression": "^1.7.4",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "elevenlabs-node": "^2.0.3",
+        "express": "^4.18.2",
+        "express-rate-limit": "^7.1.5",
+        "express-session": "^1.19.0",
+        "helmet": "^7.1.0",
+        "jsonwebtoken": "^9.0.2",
+        "knex": "^3.1.0",
+        "morgan": "^1.10.0",
+        "nodemailer": "^9.0.0",
+        "openai": "^6.45.0",
+        "passport": "^0.7.0",
+        "passport-google-oauth20": "^2.0.0",
+        "pg": "^8.11.3",
+        "socket.io": "^4.8.3",
+        "socket.io-client": "^4.8.3",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    }
+}

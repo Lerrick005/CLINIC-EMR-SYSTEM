@@ -1,0 +1,207 @@
+.container {
+  position: relative;
+  display: inline-block;
+}
+
+.bellButton {
+  position: relative;
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  color: white;
+}
+
+.bellButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  background: #EF4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 50%;
+  min-width: 18px;
+  text-align: center;
+}
+
+.dropdown {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 380px;
+  max-height: 480px;
+  background: #141414;
+  border: 1px solid #2A2A2A;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Fix dropdown being cut off on right side */
+@media (max-width: 500px) {
+  .dropdown {
+    right: -140px;
+    width: 320px;
+  }
+}
+
+@media (min-width: 501px) and (max-width: 768px) {
+  .dropdown {
+    right: -80px;
+    width: 340px;
+  }
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #2A2A2A;
+  flex-shrink: 0;
+}
+
+.title {
+  font-weight: 600;
+  color: white;
+  font-size: 15px;
+}
+
+.markAllBtn {
+  background: none;
+  border: none;
+  color: #3B82F6;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.markAllBtn:hover {
+  text-decoration: underline;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6B6B6B;
+}
+
+.emptyState span {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.list {
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: #FFD700;
+  border-radius: 3px;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1F1F1F;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.item:hover {
+  background: #1F1F1F;
+}
+
+.item.unread {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.item.unread:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.content .title {
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 2px;
+}
+
+.content .message {
+  font-size: 12px;
+  color: #A3A3A3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-wrap: break-word;
+}
+
+.content .time {
+  font-size: 10px;
+  color: #6B6B6B;
+  margin-top: 4px;
+}
+
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  background: #3B82F6;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.footer {
+  padding: 10px 16px;
+  border-top: 1px solid #2A2A2A;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.viewAllBtn {
+  background: none;
+  border: none;
+  color: #3B82F6;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.viewAllBtn:hover {
+  text-decoration: underline;
+}

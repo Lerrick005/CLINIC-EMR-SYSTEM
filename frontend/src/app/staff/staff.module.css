@@ -1,0 +1,307 @@
+/* ============================================
+   STAFF MANAGEMENT - MEDICAL-GRADE THEME
+   ============================================ */
+
+.container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: calc(100vh - 110px);
+  background: #F8FAFC;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.subtitle {
+  color: #475569;
+  margin-top: 4px;
+}
+
+.addBtn {
+  padding: 10px 20px;
+  background: #2563EB;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addBtn:hover {
+  background: #1D4ED8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+
+.error {
+  background: #FEE2E2;
+  color: #DC2626;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: #475569;
+}
+
+.tableWrapper {
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  padding: 14px 20px;
+  text-align: left;
+  color: #475569;
+  font-weight: 600;
+  border-bottom: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+
+.table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid #E2E8F0;
+  color: #0F172A;
+}
+
+.table tr:hover {
+  background: #F8FAFC;
+}
+
+.staffCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staffAvatar {
+  width: 40px;
+  height: 40px;
+  background: #DBEAFE;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #2563EB;
+}
+
+.staffName {
+  font-weight: 500;
+}
+
+.staffRole {
+  font-size: 12px;
+  color: #475569;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badgeDoctor { background: #DBEAFE; color: #2563EB; }
+.badgeReception { background: #DCFCE7; color: #059669; }
+.badgePharmacy { background: #FEF3C7; color: #D97706; }
+.badgeLab { background: #EDE9FE; color: #7C3AED; }
+.badgeAccountant { background: #FEE2E2; color: #DC2626; }
+.badgeDefault { background: #F1F5F9; color: #475569; }
+
+.activeBadge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #DCFCE7;
+  color: #059669;
+  font-size: 12px;
+}
+
+.inactiveBadge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #FEE2E2;
+  color: #DC2626;
+  font-size: 12px;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.deleteBtn:hover {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+}
+
+.emptyState p {
+  color: #94A3B8;
+}
+
+.emptyAddBtn {
+  margin-top: 16px;
+  padding: 10px 24px;
+  background: #2563EB;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.emptyAddBtn:hover {
+  background: #1D4ED8;
+}
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15,23,42,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.modalHeader h2 {
+  color: #0F172A;
+  margin: 0;
+}
+
+.modalClose {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #94A3B8;
+  cursor: pointer;
+}
+.modalClose:hover { color: #DC2626; }
+
+.modalForm { padding: 20px; }
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formGroup label {
+  color: #475569;
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.formGroup input, .formGroup select {
+  width: 100%;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  color: #0F172A;
+  font-size: 14px;
+}
+
+.formGroup input:focus, .formGroup select:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+}
+
+.modalActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.cancelBtn {
+  flex: 1;
+  padding: 10px;
+  background: #F1F5F9;
+  border: none;
+  border-radius: 8px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.saveBtn {
+  flex: 1;
+  padding: 10px;
+  background: #2563EB;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveBtn:hover { background: #1D4ED8; }
+.saveBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .container { padding: 16px; }
+  .header { flex-direction: column; align-items: stretch; gap: 12px; }
+  .table th, .table td { padding: 10px 12px; }
+  .staffCell { gap: 8px; }
+  .staffAvatar { width: 32px; height: 32px; font-size: 14px; }
+}

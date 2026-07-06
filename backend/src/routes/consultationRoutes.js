@@ -1,0 +1,448 @@
+﻿const express = require('express');
+const router = express.Router();
+const { v4: uuidv4 } = require('uuid');
+const { tenantContext } = require('../middleware/tenantContext');
+const { emitToClinic, emitToUser } = require('../socket');
+const NotificationService = require('../services/notificationService');
+
+// All consultation routes require clinic context
+router.use(tenantContext);
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+// Helper function to safely parse JSON
+function safeParseJSON(data) {
+  if (!data) return {};
+  if (typeof data === 'object') return data;
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    console.warn('⚠️ Failed to parse JSON, returning empty object:', data);
+    return {};
+  }
+}
+
+// Helper function to safely stringify JSON
+function safeStringifyJSON(data) {
+  if (!data) return '{}';
+  if (typeof data === 'string') {
+    try {
+      JSON.parse(data);
+      return data;
+    } catch (e) {
+      return JSON.stringify(data);
+    }
+  }
+  return JSON.stringify(data);
+}
+
+// Helper function to process prescriptions with status and history
+function processPrescriptions(prescriptions, doctorId, doctorName) {
+  if (!prescriptions || !Array.isArray(prescriptions) || prescriptions.length === 0) {
+    return [];
+  }
+
+  return prescriptions.map((med) => {
+    // Preserve existing status or set to 'PENDING'
+      const status = med.status || 'DISPENSED';
+    
+    // Create history entry
+    const historyEntry = {
+      status: status,
+      timestamp: new Date().toISOString(),
+      actor: doctorId,
+      actor_name: doctorName || 'Unknown Doctor',
+      actor_role: 'DOCTOR',
+      notes: `Prescribed ${med.name || med.medication || 'medication'}`
+    };
+
+    // Preserve existing history or start new
+    const existingHistory = med.history || [];
+
+    // Preserve existing dispense info or set defaults
+      const dispensed_quantity = med.dispensed_quantity || med.quantity || 1;
+      const dispensed_at = med.dispensed_at || new Date().toISOString();
+      const dispensed_by = med.dispensed_by || doctorId;
+    const dispensed_notes = med.dispensed_notes || null;
+    
+    // Calculate expiry date (14 days from now - optional but keeping for future)
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 14);
+
+    return {
+      // Original fields
+      name: med.name || med.medication || 'Unknown',
+      medication: med.medication || med.name || 'Unknown',
+      dosage: med.dosage || med.strength || '',
+      frequency: med.frequency || med.freq || '',
+      route: med.route || '',
+      duration: med.duration || '',
+      instructions: med.instructions || med.notes || '',
+      quantity: med.quantity || med.qty || 1,
+
+      // NEW: Status tracking
+      status: status,
+
+      // NEW: History
+      history: [...existingHistory, historyEntry],
+
+      // NEW: Dispensing details
+      dispensed_quantity: dispensed_quantity,
+      dispensed_at: dispensed_at,
+      dispensed_by: dispensed_by,
+      dispensed_notes: dispensed_notes,
+
+      // NEW: Timestamps
+      created_at: med.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      expiry_date: expiryDate.toISOString()
+    };
+  });
+}
+
+// ============================================
+// CREATE CONSULTATION
+// ============================================
+router.post('/', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+
+    console.log('📋 Consultation data received:', req.body);
+
+    const {
+      patient_id,
+      doctor_id,
+      chief_complaint,
+      history_of_presenting_illness,
+      review_of_systems,
+      physical_examination,
+      diagnosis,
+      differential_diagnosis,
+      treatment_plan,
+      follow_up_plan,
+      amount_due,
+      prescriptions,
+      vitals,
+      notes
+    } = req.body;
+
+    // Validation
+    if (!patient_id) {
+      return res.status(400).json({ error: 'Patient ID is required' });
+    }
+
+    if (!diagnosis) {
+      return res.status(400).json({ error: 'Diagnosis is required' });
+    }
+
+    const finalDoctorId = doctor_id || req.user?.id || null;
+
+    // Get doctor name for history
+    let doctorName = 'Unknown Doctor';
+    if (req.user) {
+      doctorName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || 'Unknown Doctor';
+    }
+
+    // ============================================
+    // PROCESS PRESCRIPTIONS WITH STATUS & HISTORY
+    // ============================================
+    let processedPrescriptions = processPrescriptions(prescriptions, finalDoctorId, doctorName);
+
+    // Auto-dispense all prescriptions (doctor dispenses directly)
+    if (processedPrescriptions.length > 0) {
+      processedPrescriptions = processedPrescriptions.map(function(p) {
+        return {
+          ...p,
+          status: "DISPENSED",
+          dispensed_quantity: p.quantity || 1,
+          dispensed_at: new Date().toISOString(),
+          dispensed_by: finalDoctorId,
+          dispensed_notes: "Dispensed during consultation",
+          history: [
+            ...(p.history || []),
+            {
+              status: "DISPENSED",
+              timestamp: new Date().toISOString(),
+              actor: finalDoctorId,
+              actor_name: doctorName || "Doctor",
+              actor_role: "DOCTOR",
+              notes: "Auto-dispensed during consultation"
+            }
+          ]
+        };
+      });
+    }
+
+    const id = uuidv4();
+
+    // Get patient name for notifications
+    const patient = await db('patients')
+      .where({ id: patient_id })
+      .first();
+    const patientName = patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : 'Patient';
+
+    // Insert consultation
+    await db('consultations').insert({
+      id,
+      clinic_id: clinicId,
+      patient_id,
+      doctor_id: finalDoctorId,
+      consultation_date: db.fn.now(),
+      chief_complaint: chief_complaint || '',
+      history_of_presenting_illness: history_of_presenting_illness || '',
+      review_of_systems: safeStringifyJSON(review_of_systems || {}),
+      physical_examination: safeStringifyJSON(physical_examination || {}),
+      diagnosis: diagnosis,
+      differential_diagnosis: differential_diagnosis || '',
+      treatment_plan: treatment_plan || '',
+      follow_up_plan: follow_up_plan || '',
+      amount_due: amount_due || 0,
+      prescriptions: safeStringifyJSON(processedPrescriptions),
+      vitals: safeStringifyJSON(vitals || {}),
+      notes: notes || '',
+      status: 'completed',
+      created_at: db.fn.now(),
+      updated_at: db.fn.now()
+    });
+
+    // ============================================
+    // SEND NOTIFICATIONS (Real-time + Database)
+    // ============================================
+    const notificationService = new NotificationService(db);
+
+    // 1. Notify Pharmacy if there are prescriptions
+    if (processedPrescriptions.length > 0) {
+      const medNames = processedPrescriptions.map(m => m.name || m.medication).join(', ');
+      
+      // Real-time notification via Socket.io
+      emitToClinic(clinicId, 'notification:new', {
+        title: '💊 New Prescription',
+        message: `Dr. ${doctorName} prescribed ${medNames} for ${patientName}`,
+        type: 'prescription_new',
+        reference_id: id,
+        reference_type: 'consultation',
+        priority: 'high'
+      });
+
+      // Database notification using NotificationService
+      await notificationService.onPrescriptionCreated(
+        { 
+          id: id, 
+          patient_id: patient_id,
+          prescriptions: processedPrescriptions 
+        },
+        clinicId,
+        finalDoctorId
+      );
+    }
+
+    // 2. Notify the doctor (confirmation) - Real-time
+    if (finalDoctorId) {
+      emitToUser(finalDoctorId, 'notification:new', {
+        title: '✅ Consultation Saved',
+        message: `Consultation for ${patientName} saved successfully with ${processedPrescriptions.length} prescriptions`,
+        type: 'consultation_saved',
+        reference_id: id,
+        reference_type: 'consultation'
+      });
+    }
+
+    // 3. Also save doctor notification to database
+    if (finalDoctorId) {
+      await notificationService.createNotification({
+        userId: finalDoctorId,
+        clinicId: clinicId,
+        title: '✅ Consultation Saved',
+        message: `Consultation for ${patientName} saved successfully with ${processedPrescriptions.length} prescriptions`,
+        type: 'consultation_saved',
+        referenceId: id,
+        referenceType: 'consultation'
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Consultation saved successfully',
+      consultationId: id,
+      prescriptions_count: processedPrescriptions.length
+    });
+
+  } catch (err) {
+    console.error('❌ Error creating consultation:', err);
+    res.status(500).json({ error: err.message || 'Failed to save consultation' });
+  }
+});
+
+// ============================================
+// GET CONSULTATIONS FOR A PATIENT
+// ============================================
+router.get('/patient/:patientId', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const { patientId } = req.params;
+
+    const consultations = await db('consultations')
+      .where({ clinic_id: clinicId, patient_id: patientId })
+      .orderBy('consultation_date', 'desc');
+
+    // Parse JSON fields safely
+    const parsed = consultations.map(c => ({
+      ...c,
+      review_of_systems: safeParseJSON(c.review_of_systems),
+      physical_examination: safeParseJSON(c.physical_examination),
+      prescriptions: safeParseJSON(c.prescriptions),
+      vitals: safeParseJSON(c.vitals)
+    }));
+
+    res.json({ success: true, consultations: parsed });
+  } catch (err) {
+    console.error('Error fetching consultations:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET TODAY'S CONSULTATIONS
+// ============================================
+router.get('/today', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+
+    const count = await db('consultations')
+      .where({ clinic_id: clinicId })
+      .whereRaw('DATE(consultation_date) = CURRENT_DATE')
+      .count('id as count')
+      .first();
+
+    res.json({ count: parseInt(count?.count || 0) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================
+// GET RECENT CONSULTATIONS
+// ============================================
+router.get('/recent', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const consultations = await db('consultations')
+      .where({ clinic_id: clinicId })
+      .leftJoin('patients', 'consultations.patient_id', 'patients.id')
+      .select(
+        'consultations.*',
+        'patients.first_name',
+        'patients.last_name',
+        'patients.medical_no'
+      )
+      .orderBy('consultation_date', 'desc')
+      .limit(limit);
+
+    // Parse JSON fields safely
+    const parsed = consultations.map(c => ({
+      ...c,
+      review_of_systems: safeParseJSON(c.review_of_systems),
+      physical_examination: safeParseJSON(c.physical_examination),
+      prescriptions: safeParseJSON(c.prescriptions),
+      vitals: safeParseJSON(c.vitals)
+    }));
+
+    res.json(parsed);
+  } catch (err) {
+    console.error('Error fetching recent consultations:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET CONSULTATION BY ID
+// ============================================
+router.get('/:id', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const { id } = req.params;
+
+    const consultation = await db('consultations')
+      .where({ clinic_id: clinicId, id })
+      .first();
+
+    if (!consultation) {
+      return res.status(404).json({ error: 'Consultation not found' });
+    }
+
+    // Parse JSON fields safely
+    const parsed = {
+      ...consultation,
+      review_of_systems: safeParseJSON(consultation.review_of_systems),
+      physical_examination: safeParseJSON(consultation.physical_examination),
+      prescriptions: safeParseJSON(consultation.prescriptions),
+      vitals: safeParseJSON(consultation.vitals)
+    };
+
+    res.json({ success: true, consultation: parsed });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================
+// GET WEEKLY CONSULTATION STATS
+// ============================================
+router.get('/stats/weekly', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+
+    const rows = await db.raw(`
+      SELECT TO_CHAR(consultation_date, 'Dy') as date, COUNT(*) as count
+      FROM consultations
+      WHERE clinic_id = ? AND consultation_date >= CURRENT_DATE - INTERVAL '6 days'
+      GROUP BY date
+      ORDER BY date ASC
+    `, [clinicId]);
+
+    res.json({ success: true, weeklyData: rows.rows || [] });
+  } catch (err) {
+    console.error('Weekly stats error:', err);
+    res.json({ success: true, weeklyData: [] });
+  }
+});
+
+// ============================================
+// GET TOP DIAGNOSES
+// ============================================
+router.get('/stats/top-diagnoses', async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const limit = parseInt(req.query.limit) || 5;
+
+    const diagnoses = await db('consultations')
+      .where({ clinic_id: clinicId })
+      .whereNotNull('diagnosis')
+      .where('diagnosis', '!=', '')
+      .select('diagnosis')
+      .count('id as count')
+      .groupBy('diagnosis')
+      .orderBy('count', 'desc')
+      .limit(limit);
+
+    res.json({ success: true, diagnoses });
+  } catch (err) {
+    console.error('Top diagnoses error:', err);
+    res.json({ success: true, diagnoses: [] });
+  }
+});
+
+module.exports = router;
+
+

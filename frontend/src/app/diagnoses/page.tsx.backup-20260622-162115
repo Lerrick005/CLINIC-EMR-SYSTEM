@@ -1,0 +1,125 @@
+﻿'use client';
+
+import React, { useState, useEffect } from 'react';
+import styles from './diagnoses.module.css';
+
+interface Diagnosis {
+  name: string;
+  code?: string;
+  category?: string;
+  total_cases?: number;
+}
+
+export default function AllDiagnosesPage() {
+  const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+  useEffect(() => {
+    fetchAllDiagnoses();
+  }, []);
+
+  const fetchAllDiagnoses = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/diagnoses/all`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAllDiagnoses(data.diagnoses || []);
+      } else {
+        setError('Failed to load diagnoses');
+      }
+    } catch (error) {
+      console.error('Error fetching diagnoses:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredDiagnoses = allDiagnoses.filter(diagnosis =>
+    diagnosis.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    diagnosis.code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    diagnosis.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.loadingState}>Loading diagnoses...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.errorState}>
+          <p>{error}</p>
+          <button onClick={fetchAllDiagnoses}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1>📋 All Diagnoses</h1>
+        <div className={styles.stats}>
+          <span className={styles.statBadge}>Total: {allDiagnoses.length} diagnoses</span>
+        </div>
+      </div>
+
+      <div className={styles.searchSection}>
+        <input
+          type="text"
+          placeholder="🔍 Search by name, code, or category..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className={styles.searchInput}
+        />
+        {searchTerm && (
+          <span className={styles.resultCount}>
+            Found {filteredDiagnoses.length} results
+          </span>
+        )}
+      </div>
+
+      <div className={styles.tableContainer}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Diagnosis Code</th>
+              <th>Diagnosis Name</th>
+              <th>Category</th>
+              <th>Total Cases</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredDiagnoses.map((diagnosis, idx) => (
+              <tr key={idx}>
+                <td>{idx + 1}</td>
+                <td className={styles.code}>{diagnosis.code || 'N/A'}</td>
+                <td className={styles.name}>{diagnosis.name}</td>
+                <td className={styles.category}>{diagnosis.category || 'General'}</td>
+                <td className={styles.cases}>{diagnosis.total_cases || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {filteredDiagnoses.length === 0 && (
+        <div className={styles.emptyState}>
+          <p>No diagnoses found matching "{searchTerm}"</p>
+        </div>
+      )}
+    </div>
+  );
+}

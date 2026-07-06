@@ -1,0 +1,116 @@
+﻿/* ============================================
+   ACTION TOOLBAR - MEDICAL GRADE
+   ============================================ */
+
+.toolbar {
+  background: #0F172A;
+  padding: 10px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.toolbarContainer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logoIcon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+/* Right Group */
+.rightGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Logout Button */
+.logoutBtn {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #E2E8F0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.logoutBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #FCA5A5;
+}
+
+/* ============================================
+   RESPONSIVE - TABLET & MOBILE
+   ============================================ */
+
+@media (max-width: 768px) {
+  .toolbar {
+    padding: 8px 14px;
+  }
+
+  .logoIcon {
+    font-size: 22px;
+  }
+
+  .logoText {
+    font-size: 14px;
+  }
+
+  .logoutBtn {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    padding: 6px 10px;
+  }
+
+  .logoIcon {
+    font-size: 18px;
+  }
+
+  .logoText {
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .logoutBtn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+}

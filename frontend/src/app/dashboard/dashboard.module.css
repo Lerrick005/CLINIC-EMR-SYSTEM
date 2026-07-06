@@ -1,0 +1,477 @@
+/* ============================================
+   MEDICAL-GRADE DASHBOARD THEME
+   ============================================ */
+
+.dashboard {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 110px);
+  background: #F8FAFC;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.header p {
+  font-size: 14px;
+  color: #475569;
+}
+
+.date {
+  color: #475569;
+  font-size: 14px;
+  background: white;
+  padding: 8px 16px;
+  border-radius: 40px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.statCard {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #E2E8F0;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.statCard:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.statCard .statIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.statCard .statValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.2;
+}
+
+.statCard .statTitle {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 4px;
+}
+
+.statCard .statSub {
+  font-size: 12px;
+  color: #94A3B8;
+  margin-top: 4px;
+}
+
+.statCard .statTrend {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 2px 10px;
+  border-radius: 20px;
+}
+
+.statTrend.up {
+  background: #DCFCE7;
+  color: #059669;
+}
+
+.statTrend.down {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+/* Card Colors */
+.statCard.blue .statIcon { background: #DBEAFE; color: #2563EB; }
+.statCard.green .statIcon { background: #DCFCE7; color: #059669; }
+.statCard.amber .statIcon { background: #FEF3C7; color: #D97706; }
+.statCard.purple .statIcon { background: #EDE9FE; color: #7C3AED; }
+
+/* Main Grid - Two Columns */
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cards */
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.cardHeader h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0F172A;
+  margin: 0;
+}
+
+.viewAllBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #2563EB;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.viewAllBtn:hover {
+  text-decoration: underline;
+}
+
+/* Weekly Activity Bars */
+.barsContainer {
+  padding: 8px 0 4px 0;
+}
+
+.barsWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 180px;
+  gap: 8px;
+}
+
+.barItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.barDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dayName {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+.dayCount {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.barWrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 150px;
+  cursor: pointer;
+}
+
+.bar {
+  width: 70%;
+  min-height: 8px;
+  background: #2563EB;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.3s ease;
+  position: relative;
+  opacity: 0.7;
+}
+
+.bar:hover {
+  opacity: 1;
+  transform: scaleY(1.02);
+}
+
+.bar.weekend {
+  background: #94A3B8;
+}
+
+.barTooltip {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0F172A;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.averageLine {
+  position: relative;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.averageLabel {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+/* Weekly Stats Footer */
+.weeklyStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #E2E8F0;
+}
+
+.weeklyStat {
+  text-align: center;
+}
+
+.weeklyStatLabel {
+  font-size: 10px;
+  color: #94A3B8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+}
+
+.weeklyStatValue {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.weeklyStatChange {
+  font-size: 10px;
+  color: #94A3B8;
+  display: block;
+}
+
+/* Top Diagnoses */
+.diagnosisList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diagnosisItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.diagnosisRank {
+  width: 28px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #94A3B8;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.diagnosisInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.diagnosisHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.diagnosisName {
+  font-size: 13px;
+  font-weight: 500;
+  color: #0F172A;
+}
+
+.diagnosisCount {
+  font-size: 12px;
+  color: #475569;
+}
+
+.progressBar {
+  width: 100%;
+  height: 4px;
+  background: #F1F5F9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.diagnosisFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.diagnosisPercent {
+  font-size: 10px;
+  color: #94A3B8;
+}
+
+.trendingBadge {
+  font-size: 10px;
+  color: #059669;
+  font-weight: 500;
+}
+
+/* Empty State */
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #94A3B8;
+}
+
+.emptyState h4 {
+  color: #0F172A;
+  margin: 12px 0 4px 0;
+}
+
+.emptyState p {
+  font-size: 13px;
+}
+
+/* Loading */
+.loadingContainer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #F8FAFC;
+  color: #475569;
+  gap: 16px;
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .statValue {
+    font-size: 20px;
+  }
+
+  .weeklyStats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .barsWrapper {
+    height: 140px;
+  }
+
+  .barWrapper {
+    height: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statValue {
+    font-size: 24px;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .dashboard {
+    background: white;
+    padding: 16px;
+  }
+
+  .statCard {
+    border: 1px solid #E2E8F0;
+    box-shadow: none;
+  }
+
+  .viewAllBtn {
+    display: none;
+  }
+}

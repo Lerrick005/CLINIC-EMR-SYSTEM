@@ -1,0 +1,10 @@
+﻿const express = require('express');
+const router = express.Router();
+const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcryptjs');
+const { tenantContext } = require('../middleware/tenantContext');
+const { requireRole, ROLES } = require('../middleware/rbac');
+const { emitToClinic } = require('../socket');
+
+// All config routes require clinic context
+router.use(tenantContext);

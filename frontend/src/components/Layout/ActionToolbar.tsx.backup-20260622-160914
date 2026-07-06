@@ -1,0 +1,56 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import NotificationBell from '../Notifications/NotificationBell';
+import styles from './ActionToolbar.module.css';
+
+export default function ActionToolbar() {
+  const router = useRouter();
+
+  const actions = [
+    { label: 'Add Patient', icon: '➕', onClick: () => router.push('/patients/new'), color: '#FFD700', textColor: '#1A1A1A' },
+    { label: 'New Consultation', icon: '📝', onClick: () => router.push('/consultations/new'), color: '#2563EB', textColor: 'white' },
+    { label: 'Order Lab', icon: '🔬', onClick: () => router.push('/lab-orders/new'), color: '#10B981', textColor: 'white' },
+    { label: 'Referral', icon: '📋', onClick: () => router.push('/referrals/new'), color: '#F97316', textColor: 'white' },
+    { label: 'Print Report', icon: '🖨️', onClick: () => alert('Print feature coming soon'), color: '#8B5CF6', textColor: 'white' },
+  ];
+
+  return (
+    <div className={styles.toolbar}>
+      <div className={styles.toolbarContainer}>
+        <Link href="/dashboard" className={styles.logo}>
+          <span className={styles.logoIcon}>🏥</span>
+          <span className={styles.logoText}>CLINIC EMR</span>
+        </Link>
+
+        <div className={styles.actionGroup}>
+          {actions.map((action, index) => (
+            <button
+              key={index}
+              onClick={action.onClick}
+              className={styles.actionBtn}
+              style={{
+                background: action.color,
+                color: action.textColor
+              }}
+            >
+              <span className={styles.btnIcon}>{action.icon}</span>
+              <span className={styles.btnLabel}>{action.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.rightGroup}>
+          <NotificationBell />
+          <button 
+            className={styles.logoutBtn} 
+            onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+          >
+            🚪 Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

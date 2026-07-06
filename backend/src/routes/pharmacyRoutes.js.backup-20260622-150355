@@ -1,0 +1,901 @@
+﻿const express = require('express');
+const router = express.Router();
+const { v4: uuidv4 } = require('uuid');
+const { tenantContext } = require('../middleware/tenantContext');
+const { requireRole, ROLES } = require('../middleware/rbac');
+const { emitToClinic, emitToUser } = require('../socket');
+const NotificationService = require('../services/notificationService');
+
+router.use(tenantContext);
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+// Helper to safely parse JSON
+function safeParseJSON(data) {
+  if (!data) return {};
+  if (typeof data === 'object') return data;
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return {};
+  }
+}
+
+// Helper to get status badge color
+function getStatusBadge(status) {
+  const badges = {
+    'PENDING': { color: 'bg-yellow-500', text: 'Pending' },
+    'DISPENSED': { color: 'bg-green-500', text: 'Dispensed' },
+    'PARTIALLY_DISPENSED': { color: 'bg-blue-500', text: 'Partially Dispensed' },
+    'CANCELLED': { color: 'bg-red-500', text: 'Cancelled' }
+  };
+  return badges[status] || badges['PENDING'];
+}
+
+// Helper to check if user can cancel
+function canCancel(userRole) {
+  return [ROLES.DOCTOR, ROLES.PHARMACIST, ROLES.CLINIC_ADMIN, ROLES.SUPER_ADMIN].includes(userRole);
+}
+
+// ============================================
+// GET ALL PRESCRIPTIONS
+// ============================================
+router.get('/prescriptions', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.DOCTOR, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const { status, patientId, dateFrom, dateTo } = req.query;
+
+    let query = db('consultations')
+      .where({ clinic_id: clinicId })
+      .whereNotNull('prescriptions')
+      .whereRaw("jsonb_array_length(prescriptions) > 0")
+      .leftJoin('patients', 'consultations.patient_id', 'patients.id')
+      .leftJoin('users as doctor', 'consultations.doctor_id', 'doctor.id')
+      .select(
+        'consultations.id as consultation_id',
+        'consultations.patient_id',
+        'consultations.prescriptions',
+        'consultations.consultation_date',
+        'consultations.doctor_id',
+        'consultations.diagnosis',
+        'consultations.amount_due',
+        'patients.first_name as patient_first_name',
+        'patients.last_name as patient_last_name',
+        'patients.phone as patient_phone',
+        'patients.medical_no',
+        'doctor.first_name as doctor_first_name',
+        'doctor.last_name as doctor_last_name'
+      );
+
+    // Filter by patient
+    if (patientId) {
+      query = query.where({ patient_id: patientId });
+    }
+
+    // Filter by date range
+    if (dateFrom) {
+      query = query.where('consultation_date', '>=', dateFrom);
+    }
+    if (dateTo) {
+      query = query.where('consultation_date', '<=', dateTo);
+    }
+
+    const consultations = await query.orderBy('consultation_date', 'desc');
+
+    // Format the response - flatten prescriptions
+    const prescriptions = [];
+    consultations.forEach(c => {
+      const meds = safeParseJSON(c.prescriptions) || [];
+      meds.forEach((med, index) => {
+        // Determine status
+        const medStatus = med.status || 'PENDING';
+        
+        // Only filter by status if requested
+        if (status && medStatus !== status) {
+          return;
+        }
+
+        prescriptions.push({
+          id: `${c.consultation_id}-${index}`,
+          consultation_id: c.consultation_id,
+          patient_id: c.patient_id,
+          patient_name: `${c.patient_first_name || ''} ${c.patient_last_name || ''}`.trim(),
+          patient_phone: c.patient_phone || '',
+          medical_no: c.medical_no || '',
+          doctor_name: `${c.doctor_first_name || ''} ${c.doctor_last_name || ''}`.trim(),
+          doctor_id: c.doctor_id,
+          consultation_date: c.consultation_date,
+          diagnosis: c.diagnosis,
+          amount_due: c.amount_due,
+          
+          // Medication details
+          medication: med.name || med.medication || 'Unknown',
+          dosage: med.dosage || med.dose || '',
+          frequency: med.frequency || '',
+          route: med.route || '',
+          duration: med.duration || '',
+          instructions: med.instructions || '',
+          quantity: med.quantity || 1,
+          
+          // Status
+          status: medStatus,
+          status_badge: getStatusBadge(medStatus),
+          
+          // Dispensing info
+          dispensed_quantity: med.dispensed_quantity || 0,
+          dispensed_at: med.dispensed_at || null,
+          dispensed_by: med.dispensed_by || null,
+          dispensed_notes: med.dispensed_notes || '',
+          
+          // History
+          history: med.history || [],
+          
+          // Timestamps
+          created_at: med.created_at || c.consultation_date,
+          updated_at: med.updated_at || c.consultation_date,
+          expiry_date: med.expiry_date || null,
+          
+          // For UI
+          is_dispensed: medStatus === 'DISPENSED',
+          is_partial: medStatus === 'PARTIALLY_DISPENSED',
+          is_pending: medStatus === 'PENDING',
+          is_cancelled: medStatus === 'CANCELLED'
+        });
+      });
+    });
+
+    res.json({ 
+      success: true, 
+      prescriptions,
+      total: prescriptions.length,
+      stats: {
+        pending: prescriptions.filter(p => p.status === 'PENDING').length,
+        dispensed: prescriptions.filter(p => p.status === 'DISPENSED').length,
+        partial: prescriptions.filter(p => p.status === 'PARTIALLY_DISPENSED').length,
+        cancelled: prescriptions.filter(p => p.status === 'CANCELLED').length
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching prescriptions:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET SINGLE PRESCRIPTION
+// ============================================
+router.get('/prescriptions/:id', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.DOCTOR, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const { id } = req.params;
+
+    // id format: consultation_id-index
+    const [consultationId, medIndex] = id.split('-');
+
+    // Get consultation
+    const consultation = await db('consultations')
+      .where({ clinic_id: clinicId, id: consultationId })
+      .leftJoin('patients', 'consultations.patient_id', 'patients.id')
+      .leftJoin('users as doctor', 'consultations.doctor_id', 'doctor.id')
+      .select(
+        'consultations.*',
+        'patients.first_name as patient_first_name',
+        'patients.last_name as patient_last_name',
+        'patients.phone as patient_phone',
+        'patients.medical_no',
+        'doctor.first_name as doctor_first_name',
+        'doctor.last_name as doctor_last_name'
+      )
+      .first();
+
+    if (!consultation) {
+      return res.status(404).json({ error: 'Consultation not found' });
+    }
+
+    const meds = safeParseJSON(consultation.prescriptions) || [];
+    const index = parseInt(medIndex);
+    
+    if (index >= meds.length) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+
+    const med = meds[index];
+    const medStatus = med.status || 'PENDING';
+
+    res.json({
+      success: true,
+      prescription: {
+        id: `${consultationId}-${index}`,
+        consultation_id: consultationId,
+        patient_id: consultation.patient_id,
+        patient_name: `${consultation.patient_first_name || ''} ${consultation.patient_last_name || ''}`.trim(),
+        patient_phone: consultation.patient_phone || '',
+        medical_no: consultation.medical_no || '',
+        doctor_name: `${consultation.doctor_first_name || ''} ${consultation.doctor_last_name || ''}`.trim(),
+        doctor_id: consultation.doctor_id,
+        consultation_date: consultation.consultation_date,
+        diagnosis: consultation.diagnosis,
+        amount_due: consultation.amount_due,
+        
+        // Medication details
+        medication: med.name || med.medication || 'Unknown',
+        dosage: med.dosage || '',
+        frequency: med.frequency || '',
+        route: med.route || '',
+        duration: med.duration || '',
+        instructions: med.instructions || '',
+        quantity: med.quantity || 1,
+        
+        // Status
+        status: medStatus,
+        status_badge: getStatusBadge(medStatus),
+        
+        // Dispensing info
+        dispensed_quantity: med.dispensed_quantity || 0,
+        dispensed_at: med.dispensed_at || null,
+        dispensed_by: med.dispensed_by || null,
+        dispensed_notes: med.dispensed_notes || '',
+        
+        // History
+        history: med.history || [],
+        
+        // Timestamps
+        created_at: med.created_at || consultation.consultation_date,
+        updated_at: med.updated_at || consultation.consultation_date,
+        expiry_date: med.expiry_date || null
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching prescription:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// DISPENSE PRESCRIPTION (Full or Partial)
+// ============================================
+router.put('/prescriptions/:id/dispense', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || 'Pharmacist';
+    
+    const { id } = req.params;
+    const { 
+      quantity_dispensed, 
+      notes, 
+      status = 'DISPENSED' 
+    } = req.body;
+
+    // id format: consultation_id-index
+    const [consultationId, medIndex] = id.split('-');
+
+    // Get consultation
+    const consultation = await db('consultations')
+      .where({ clinic_id: clinicId, id: consultationId })
+      .first();
+
+    if (!consultation) {
+      return res.status(404).json({ error: 'Consultation not found' });
+    }
+
+    let prescriptions = safeParseJSON(consultation.prescriptions) || [];
+    const index = parseInt(medIndex);
+    
+    if (index >= prescriptions.length) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+
+    const med = prescriptions[index];
+    
+    // Check if already dispensed
+    if (med.status === 'DISPENSED') {
+      return res.status(400).json({ error: 'Prescription already dispensed' });
+    }
+
+    // Check if cancelled
+    if (med.status === 'CANCELLED') {
+      return res.status(400).json({ error: 'Prescription has been cancelled' });
+    }
+
+    // Calculate dispensed quantity
+    const totalQuantity = med.quantity || 1;
+    const dispensedQty = quantity_dispensed || totalQuantity;
+    
+    // Determine new status
+    let newStatus;
+    if (dispensedQty >= totalQuantity) {
+      newStatus = 'DISPENSED';
+    } else if (dispensedQty > 0) {
+      newStatus = 'PARTIALLY_DISPENSED';
+    } else {
+      return res.status(400).json({ error: 'Quantity dispensed must be greater than 0' });
+    }
+
+    // Create history entry
+    const historyEntry = {
+      status: newStatus,
+      timestamp: new Date().toISOString(),
+      actor: userId,
+      actor_name: userName,
+      actor_role: userRole,
+      notes: notes || `Dispensed ${dispensedQty} of ${totalQuantity} ${med.name}`
+    };
+
+    // Update prescription
+    prescriptions[index] = {
+      ...med,
+      status: newStatus,
+      dispensed_quantity: dispensedQty,
+      dispensed_at: new Date().toISOString(),
+      dispensed_by: userId,
+      dispensed_notes: notes || '',
+      history: [...(med.history || []), historyEntry],
+      updated_at: new Date().toISOString()
+    };
+
+    // Update consultation
+    await db('consultations')
+      .where({ id: consultationId })
+      .update({
+        prescriptions: JSON.stringify(prescriptions),
+        updated_at: db.fn.now(),
+        // If all prescriptions dispensed, mark consultation as dispensed
+        status: newStatus === 'DISPENSED' ? 'dispensed' : 'completed'
+      });
+
+    // ============================================
+    // SEND NOTIFICATIONS (Real-time + Database)
+    // ============================================
+    const notificationService = new NotificationService(db);
+
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || '} ${patient.last_name || '}`.trim() : 'Patient';
+
+    // 1. Real-time notification via Socket.io
+    // Notify doctor who prescribed (if not the one cancelling)
+    if (consultation.doctor_id && consultation.doctor_id !== userId) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: '🚫 Prescription Cancelled',
+        message: `${med.name} for ${patientName} was cancelled by ${userName}`,
+        type: 'prescription_cancelled',
+        reference_id: consultationId,
+        reference_type: 'consultation',
+        reason: reason
+      });
+    }
+
+    // 2. Database notifications using NotificationService
+    await notificationService.onPrescriptionCancelled(
+      consultation,
+      med,
+      clinicId,
+      userId,
+      consultation.patient_id,
+      reason
+    );
+
+    // ============================================
+    // SEND NOTIFICATIONS (Real-time + Database)
+    // ============================================
+    const notificationService = new NotificationService(db);
+
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || '} ${patient.last_name || '}`.trim() : 'Patient';
+
+    // 1. Real-time notifications via Socket.io
+    const notificationMessage = newStatus === 'DISPENSED' 
+      ? `✅ ${patientName} - Prescription ready for pickup (${med.name})`
+      : `⚠️ ${patientName} - Partially dispensed (${dispensedQty}/${totalQuantity} ${med.name})`;
+    
+    emitToClinic(clinicId, 'notification:new', {
+      title: newStatus === 'DISPENSED' ? '💊 Prescription Ready' : '⚠️ Partial Dispense',
+      message: notificationMessage,
+      type: newStatus === 'DISPENSED' ? 'prescription_ready' : 'prescription_partial',
+      reference_id: consultationId,
+      reference_type: 'consultation',
+      priority: 'high',
+      patient_name: patientName,
+      medication: med.name,
+      quantity: `${dispensedQty}/${totalQuantity}`
+    });
+
+    // Notify the doctor who prescribed (real-time)
+    if (consultation.doctor_id) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: newStatus === 'DISPENSED' ? '💊 Prescription Dispensed' : '⚠️ Prescription Partially Dispensed',
+        message: `${med.name} for ${patientName} - ${newStatus === 'DISPENSED' ? 'Fully dispensed' : `Partially dispensed (${dispensedQty}/${totalQuantity})`}`,
+        type: 'prescription_dispensed',
+        reference_id: consultationId,
+        reference_type: 'consultation'
+      });
+    }
+
+    // 2. Database notifications using NotificationService
+    if (newStatus === 'DISPENSED') {
+      await notificationService.onPrescriptionDispensed(
+        consultation,
+        med,
+        clinicId,
+        userId,
+        consultation.patient_id
+      );
+    } else if (newStatus === 'PARTIALLY_DISPENSED') {
+      await notificationService.onPrescriptionPartiallyDispensed(
+        consultation,
+        med,
+        clinicId,
+        userId,
+        consultation.patient_id,
+        dispensedQty,
+        totalQuantity
+      );
+    }
+
+    // 3. Also save a notification for the pharmacist (confirmation)
+    await notificationService.createNotification({
+      userId: userId,
+      clinicId: clinicId,
+      title: newStatus === 'DISPENSED' ? '✅ Dispense Complete' : '⚠️ Partial Dispense Complete',
+      message: `${med.name} ${newStatus === 'DISPENSED' ? 'fully' : 'partially'} dispensed to ${patientName}`,
+      type: 'dispense_confirmation',
+      referenceId: consultationId,
+      referenceType: 'consultation'
+    });
+
+    // ============================================
+    // SEND NOTIFICATIONS
+    // ============================================
+    
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : 'Patient';
+
+    // 1. Notify RECEPTION that prescription is ready
+    const notificationMessage = newStatus === 'DISPENSED' 
+      ? `âœ… ${patientName} - Prescription ready for pickup (${med.name})`
+      : `âš ï¸ ${patientName} - Partially dispensed (${dispensedQty}/${totalQuantity} ${med.name})`;
+    
+    emitToClinic(clinicId, 'notification:new', {
+      title: newStatus === 'DISPENSED' ? 'ðŸ’Š Prescription Ready' : 'âš ï¸ Partial Dispense',
+      message: notificationMessage,
+      type: newStatus === 'DISPENSED' ? 'prescription_ready' : 'prescription_partial',
+      reference_id: consultationId,
+      reference_type: 'consultation',
+      priority: 'high',
+      patient_name: patientName,
+      medication: med.name,
+      quantity: `${dispensedQty}/${totalQuantity}`
+    });
+
+    // 2. Notify the doctor who prescribed
+    if (consultation.doctor_id) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: newStatus === 'DISPENSED' ? 'ðŸ’Š Prescription Dispensed' : 'âš ï¸ Prescription Partially Dispensed',
+        message: `${med.name} for ${patientName} - ${newStatus === 'DISPENSED' ? 'Fully dispensed' : `Partially dispensed (${dispensedQty}/${totalQuantity})`}`,
+        type: 'prescription_dispensed',
+        reference_id: consultationId,
+        reference_type: 'consultation'
+      });
+    }
+
+    // 3. Notify the pharmacist who dispensed (confirmation)
+    emitToUser(userId, 'notification:new', {
+      title: 'âœ… Dispense Successful',
+      message: `${med.name} dispensed to ${patientName}`,
+      type: 'dispense_confirmation',
+      reference_id: consultationId,
+      reference_type: 'consultation'
+    });
+
+    res.json({
+      success: true,
+      message: newStatus === 'DISPENSED' ? 'Prescription dispensed successfully' : 'Prescription partially dispensed',
+      data: {
+        consultation_id: consultationId,
+        medication: med.name,
+        status: newStatus,
+        dispensed_quantity: dispensedQty,
+        total_quantity: totalQuantity,
+        notes: notes || ''
+      }
+    });
+  } catch (err) {
+    console.error('Error dispensing prescription:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// CANCEL PRESCRIPTION
+// ============================================
+router.put('/prescriptions/:id/cancel', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.DOCTOR, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    const userName = `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim() || 'Staff';
+    
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({ error: 'Cancellation reason is required' });
+    }
+
+    // id format: consultation_id-index
+    const [consultationId, medIndex] = id.split('-');
+
+    // Get consultation
+    const consultation = await db('consultations')
+      .where({ clinic_id: clinicId, id: consultationId })
+      .first();
+
+    if (!consultation) {
+      return res.status(404).json({ error: 'Consultation not found' });
+    }
+
+    let prescriptions = safeParseJSON(consultation.prescriptions) || [];
+    const index = parseInt(medIndex);
+    
+    if (index >= prescriptions.length) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+
+    const med = prescriptions[index];
+    
+    // Check if already dispensed
+    if (med.status === 'DISPENSED') {
+      return res.status(400).json({ error: 'Cannot cancel a dispensed prescription' });
+    }
+
+    // Check if already cancelled
+    if (med.status === 'CANCELLED') {
+      return res.status(400).json({ error: 'Prescription already cancelled' });
+    }
+
+    // Create history entry
+    const historyEntry = {
+      status: 'CANCELLED',
+      timestamp: new Date().toISOString(),
+      actor: userId,
+      actor_name: userName,
+      actor_role: userRole,
+      notes: `Cancelled: ${reason}`
+    };
+
+    // Update prescription
+    prescriptions[index] = {
+      ...med,
+      status: 'CANCELLED',
+      history: [...(med.history || []), historyEntry],
+      updated_at: new Date().toISOString()
+    };
+
+    // Update consultation
+    await db('consultations')
+      .where({ id: consultationId })
+      .update({
+        prescriptions: JSON.stringify(prescriptions),
+        updated_at: db.fn.now()
+      });
+
+    // ============================================
+    // SEND NOTIFICATIONS (Real-time + Database)
+    // ============================================
+    const notificationService = new NotificationService(db);
+
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || '} ${patient.last_name || '}`.trim() : 'Patient';
+
+    // 1. Real-time notification via Socket.io
+    // Notify doctor who prescribed (if not the one cancelling)
+    if (consultation.doctor_id && consultation.doctor_id !== userId) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: '🚫 Prescription Cancelled',
+        message: `${med.name} for ${patientName} was cancelled by ${userName}`,
+        type: 'prescription_cancelled',
+        reference_id: consultationId,
+        reference_type: 'consultation',
+        reason: reason
+      });
+    }
+
+    // 2. Database notifications using NotificationService
+    await notificationService.onPrescriptionCancelled(
+      consultation,
+      med,
+      clinicId,
+      userId,
+      consultation.patient_id,
+      reason
+    );
+
+    // ============================================
+    // SEND NOTIFICATIONS (Real-time + Database)
+    // ============================================
+    const notificationService = new NotificationService(db);
+
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || '} ${patient.last_name || '}`.trim() : 'Patient';
+
+    // 1. Real-time notifications via Socket.io
+    const notificationMessage = newStatus === 'DISPENSED' 
+      ? `✅ ${patientName} - Prescription ready for pickup (${med.name})`
+      : `⚠️ ${patientName} - Partially dispensed (${dispensedQty}/${totalQuantity} ${med.name})`;
+    
+    emitToClinic(clinicId, 'notification:new', {
+      title: newStatus === 'DISPENSED' ? '💊 Prescription Ready' : '⚠️ Partial Dispense',
+      message: notificationMessage,
+      type: newStatus === 'DISPENSED' ? 'prescription_ready' : 'prescription_partial',
+      reference_id: consultationId,
+      reference_type: 'consultation',
+      priority: 'high',
+      patient_name: patientName,
+      medication: med.name,
+      quantity: `${dispensedQty}/${totalQuantity}`
+    });
+
+    // Notify the doctor who prescribed (real-time)
+    if (consultation.doctor_id) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: newStatus === 'DISPENSED' ? '💊 Prescription Dispensed' : '⚠️ Prescription Partially Dispensed',
+        message: `${med.name} for ${patientName} - ${newStatus === 'DISPENSED' ? 'Fully dispensed' : `Partially dispensed (${dispensedQty}/${totalQuantity})`}`,
+        type: 'prescription_dispensed',
+        reference_id: consultationId,
+        reference_type: 'consultation'
+      });
+    }
+
+    // 2. Database notifications using NotificationService
+    if (newStatus === 'DISPENSED') {
+      await notificationService.onPrescriptionDispensed(
+        consultation,
+        med,
+        clinicId,
+        userId,
+        consultation.patient_id
+      );
+    } else if (newStatus === 'PARTIALLY_DISPENSED') {
+      await notificationService.onPrescriptionPartiallyDispensed(
+        consultation,
+        med,
+        clinicId,
+        userId,
+        consultation.patient_id,
+        dispensedQty,
+        totalQuantity
+      );
+    }
+
+    // 3. Also save a notification for the pharmacist (confirmation)
+    await notificationService.createNotification({
+      userId: userId,
+      clinicId: clinicId,
+      title: newStatus === 'DISPENSED' ? '✅ Dispense Complete' : '⚠️ Partial Dispense Complete',
+      message: `${med.name} ${newStatus === 'DISPENSED' ? 'fully' : 'partially'} dispensed to ${patientName}`,
+      type: 'dispense_confirmation',
+      referenceId: consultationId,
+      referenceType: 'consultation'
+    });
+
+    // ============================================
+    // SEND NOTIFICATIONS
+    // ============================================
+    
+    // Get patient details
+    const patient = await db('patients')
+      .where({ id: consultation.patient_id })
+      .first();
+    
+    const patientName = patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : 'Patient';
+
+    // Notify doctor who prescribed
+    if (consultation.doctor_id) {
+      emitToUser(consultation.doctor_id, 'notification:new', {
+        title: 'ðŸš« Prescription Cancelled',
+        message: `${med.name} for ${patientName} was cancelled by ${userName}`,
+        type: 'prescription_cancelled',
+        reference_id: consultationId,
+        reference_type: 'consultation',
+        reason: reason
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Prescription cancelled successfully',
+      data: {
+        consultation_id: consultationId,
+        medication: med.name,
+        status: 'CANCELLED',
+        reason: reason
+      }
+    });
+  } catch (err) {
+    console.error('Error cancelling prescription:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET PRESCRIPTION HISTORY
+// ============================================
+router.get('/prescriptions/:id/history', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.DOCTOR, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const { id } = req.params;
+
+    // id format: consultation_id-index
+    const [consultationId, medIndex] = id.split('-');
+
+    // Get consultation
+    const consultation = await db('consultations')
+      .where({ clinic_id: clinicId, id: consultationId })
+      .first();
+
+    if (!consultation) {
+      return res.status(404).json({ error: 'Consultation not found' });
+    }
+
+    const prescriptions = safeParseJSON(consultation.prescriptions) || [];
+    const index = parseInt(medIndex);
+    
+    if (index >= prescriptions.length) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+
+    const med = prescriptions[index];
+    const history = med.history || [];
+
+    res.json({
+      success: true,
+      history: history,
+      medication: med.name || med.medication || 'Unknown',
+      current_status: med.status || 'PENDING'
+    });
+  } catch (err) {
+    console.error('Error fetching prescription history:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET PHARMACY STATISTICS
+// ============================================
+router.get('/stats', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+
+    // Get all consultations with prescriptions
+    const consultations = await db('consultations')
+      .where({ clinic_id: clinicId })
+      .whereNotNull('prescriptions')
+      .whereRaw("jsonb_array_length(prescriptions) > 0")
+      .select('prescriptions');
+
+    let total = 0;
+    let pending = 0;
+    let dispensed = 0;
+    let partiallyDispensed = 0;
+    let cancelled = 0;
+
+    consultations.forEach(c => {
+      const meds = safeParseJSON(c.prescriptions) || [];
+      meds.forEach(med => {
+        total++;
+        const status = med.status || 'PENDING';
+        switch (status) {
+          case 'PENDING': pending++; break;
+          case 'DISPENSED': dispensed++; break;
+          case 'PARTIALLY_DISPENSED': partiallyDispensed++; break;
+          case 'CANCELLED': cancelled++; break;
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        pending,
+        dispensed,
+        partially_dispensed: partiallyDispensed,
+        cancelled,
+        dispense_rate: total > 0 ? ((dispensed / total) * 100).toFixed(1) : 0
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching pharmacy stats:', err);
+    next(err);
+  }
+});
+
+// ============================================
+// GET RECENT DISPENSING ACTIVITY
+// ============================================
+router.get('/activity', requireRole([ROLES.SUPER_ADMIN, ROLES.CLINIC_ADMIN, ROLES.PHARMACIST]), async (req, res, next) => {
+  try {
+    const db = req.db;
+    const clinicId = req.clinicId;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const consultations = await db('consultations')
+      .where({ clinic_id: clinicId })
+      .whereNotNull('prescriptions')
+      .whereRaw("jsonb_array_length(prescriptions) > 0")
+      .leftJoin('patients', 'consultations.patient_id', 'patients.id')
+      .leftJoin('users as pharmacist', 'consultations.prescriptions->>dispensed_by', 'pharmacist.id')
+      .select(
+        'consultations.id as consultation_id',
+        'consultations.patient_id',
+        'consultations.prescriptions',
+        'consultations.consultation_date',
+        'consultations.updated_at',
+        'patients.first_name as patient_first_name',
+        'patients.last_name as patient_last_name',
+        'pharmacist.first_name as pharmacist_first_name',
+        'pharmacist.last_name as pharmacist_last_name'
+      )
+      .orderBy('consultations.updated_at', 'desc')
+      .limit(limit);
+
+    const activities = [];
+    consultations.forEach(c => {
+      const meds = safeParseJSON(c.prescriptions) || [];
+      meds.forEach(med => {
+        if (med.status === 'DISPENSED' || med.status === 'PARTIALLY_DISPENSED') {
+          activities.push({
+            consultation_id: c.consultation_id,
+            patient_name: `${c.patient_first_name || ''} ${c.patient_last_name || ''}`.trim(),
+            medication: med.name || med.medication || 'Unknown',
+            status: med.status,
+            dispensed_quantity: med.dispensed_quantity || 0,
+            total_quantity: med.quantity || 1,
+            dispensed_at: med.dispensed_at,
+            pharmacist_name: `${c.pharmacist_first_name || ''} ${c.pharmacist_last_name || ''}`.trim() || 'Unknown',
+            notes: med.dispensed_notes || ''
+          });
+        }
+      });
+    });
+
+    res.json({
+      success: true,
+      activities: activities.slice(0, limit)
+    });
+  } catch (err) {
+    console.error('Error fetching pharmacy activity:', err);
+    next(err);
+  }
+});
+
+module.exports = router;

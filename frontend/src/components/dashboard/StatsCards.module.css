@@ -1,0 +1,81 @@
+﻿.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  background: #141414;
+  border: 1px solid #2A2A2A;
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: #FFD700;
+  box-shadow: 0 8px 24px rgba(255, 215, 0, 0.08);
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info {
+  flex: 1;
+}
+
+.value {
+  font-size: 28px;
+  font-weight: 700;
+  color: white;
+  line-height: 1.1;
+}
+
+.title {
+  font-size: 13px;
+  color: #A3A3A3;
+  margin-top: 2px;
+}
+
+.sub {
+  font-size: 12px;
+  color: #6B6B6B;
+  margin-top: 2px;
+}
+
+.glow {
+  position: absolute;
+  top: -50%;
+  right: -30%;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  opacity: 0.06;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .value { font-size: 22px; }
+}
+
+@media (max-width: 480px) {
+  .grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,22 @@
+﻿<!DOCTYPE html>
+<html>
+<head><title>Generate Icons</title></head>
+<body>
+  <canvas id="canvas" width="512" height="512"></canvas>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'Bold 200px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏥', 256, 256);
+    const link = document.createElement('a');
+    link.download = 'icon-512x512.png';
+    link.href = canvas.toDataURL();
+    link.click();
+  </script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import api from '../../lib/api';
+import { getSocket } from '../../lib/socket';
+import styles from './NotificationBell.module.css';
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  reference_id: string;
+  reference_type: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export default function NotificationBell() {
+  const router = useRouter();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchNotifications();
+    fetchUnreadCount();
+    setupSocketListeners();
+
+    // Click outside to close dropdown
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const setupSocketListeners = () => {
+    try {
+      const socket = getSocket();
+      socket.on('notification:new', (data) => {
+        const newNotification = {
+          ...data,
+          is_read: false
+        };
+        setNotifications(prev => [newNotification, ...prev]);
+        setUnreadCount(prev => prev + 1);
+      });
+
+      return () => {
+        socket.off('notification:new');
+      };
+    } catch (error) {
+      console.error('Socket setup error:', error);
+    }
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get('/notifications?limit=20');
+      if (res.data.success) {
+        setNotifications(res.data.notifications);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await api.get('/notifications/unread-count');
+      if (res.data.success) {
+        setUnreadCount(res.data.count);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+      );
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await api.put('/notifications/read-all');
+      setNotifications(prev =>
+        prev.map(n => ({ ...n, is_read: true }))
+      );
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    handleMarkAsRead(notification.id);
+
+    // Navigate based on type
+    switch (notification.reference_type) {
+      case 'patient':
+        router.push(`/patients/${notification.reference_id}`);
+        break;
+      case 'consultation':
+        router.push(`/consultations/${notification.reference_id}`);
+        break;
+      case 'lab':
+        router.push(`/lab-orders/${notification.reference_id}`);
+        break;
+      case 'referral':
+        router.push(`/referrals/${notification.reference_id}`);
+        break;
+      default:
+        break;
+    }
+    setIsOpen(false);
+  };
+
+  const getTypeIcon = (type: string) => {
+    const icons: Record<string, string> = {
+      patient: '👤',
+      consultation: '🩺',
+      lab: '🔬',
+      prescription: '💊',
+      referral: '📋',
+      lab_abnormal: '⚠️'
+    };
+    return icons[type] || '📢';
+  };
+
+  const getTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  return (
+    <div className={styles.container} ref={dropdownRef}>
+      <button
+        className={styles.bellButton}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label="Notifications"
+      >
+        🔔
+        {unreadCount > 0 && (
+          <span className={styles.badge}>{unreadCount}</span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className={styles.dropdown}>
+          <div className={styles.header}>
+            <span className={styles.title}>Notifications</span>
+            {unreadCount > 0 && (
+              <button className={styles.markAllBtn} onClick={handleMarkAllAsRead}>
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {notifications.length === 0 ? (
+            <div className={styles.emptyState}>
+              <span>📭</span>
+              <p>No notifications</p>
+            </div>
+          ) : (
+            <div className={styles.list}>
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`${styles.item} ${!notification.is_read ? styles.unread : ''}`}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <div className={styles.icon}>{getTypeIcon(notification.type)}</div>
+                  <div className={styles.content}>
+                    <div className={styles.title}>{notification.title}</div>
+                    <div className={styles.message}>{notification.message}</div>
+                    <div className={styles.time}>{getTimeAgo(notification.created_at)}</div>
+                  </div>
+                  {!notification.is_read && <div className={styles.unreadDot}></div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.footer}>
+            <button className={styles.viewAllBtn} onClick={() => router.push('/notifications')}>
+              View all notifications →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
