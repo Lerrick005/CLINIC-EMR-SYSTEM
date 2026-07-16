@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../lib/api';
 import styles from './patients.module.css';
@@ -23,7 +23,14 @@ interface Patient {
   address?: string;
 }
 
-export default function PatientsPage() {
+interface PaginationData {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+function PatientsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -45,6 +52,12 @@ export default function PatientsPage() {
     address: ''
   });
   const [isUpdating, setIsUpdating] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalPatients, setTotalPatients] = useState(0);
+  const [itemsPerPage] = useState(20);
 
   useEffect(() => {
     const urlSearch = searchParams?.get('search');
@@ -53,13 +66,23 @@ export default function PatientsPage() {
     }
   }, [searchParams]);
 
-  const fetchPatients = useCallback(async () => {
+  const fetchPatients = useCallback(async (page = 1, search = '') => {
     setLoading(true);
     try {
-      const res = await api.get('/patients');
+      const params = new URLSearchParams();
+      params.set('page', page.toString());
+      params.set('limit', itemsPerPage.toString());
+      if (search && search.trim()) {
+        params.set('search', search.trim());
+      }
+      
+      const res = await api.get(`/patients?${params.toString()}`);
       if (res.data.success) {
         setPatients(res.data.patients);
         setFilteredPatients(res.data.patients);
+        setTotalPages(res.data.pagination.totalPages);
+        setTotalPatients(res.data.pagination.total);
+        setCurrentPage(res.data.pagination.page);
       } else {
         setError('Failed to load patients');
       }
@@ -68,26 +91,12 @@ export default function PatientsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [itemsPerPage]);
 
+  // Initial load and when search term changes
   useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
-
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredPatients(patients);
-    } else {
-      const term = searchTerm.toLowerCase().trim();
-      const filtered = patients.filter(patient => {
-        const fullName = `${patient.first_name} ${patient.last_name}`.toLowerCase();
-        const phone = patient.phone?.toLowerCase() || '';
-        const medicalNo = patient.medical_no?.toLowerCase() || '';
-        return fullName.includes(term) || phone.includes(term) || medicalNo.includes(term);
-      });
-      setFilteredPatients(filtered);
-    }
-  }, [searchTerm, patients]);
+    fetchPatients(1, searchTerm);
+  }, [fetchPatients, searchTerm]);
 
   const fetchPatientDetail = async (patientId: string) => {
     setSelectedPatientLoading(true);
@@ -112,7 +121,7 @@ export default function PatientsPage() {
       console.error('Error fetching patient details:', error);
       const basicPatient = patients.find(p => p.id === patientId);
       if (basicPatient) {
-        setSelectedPatient({ ...basicPatient, visits: [], labOrders: [], allergies: [], lastVisit: null });
+        setSelectedPatient({ ...basicPatient, visits: [], labOrders: [], allergies: [], lastVisit: undefined });
       }
     } finally {
       setSelectedPatientLoading(false);
@@ -140,7 +149,7 @@ export default function PatientsPage() {
     if (confirm('Are you sure you want to deactivate this patient?')) {
       try {
         await api.delete(`/patients/${id}`);
-        fetchPatients();
+        fetchPatients(currentPage, searchTerm);
         if (selectedPatient?.id === id) {
           setSelectedPatient(null);
         }
@@ -175,7 +184,7 @@ export default function PatientsPage() {
       await api.put(`/patients/${editingPatient?.id}`, editForm);
       alert('Patient updated successfully!');
       setShowEditModal(false);
-      fetchPatients();
+      fetchPatients(currentPage, searchTerm);
       if (selectedPatient?.id === editingPatient?.id) {
         fetchPatientDetail(editingPatient!.id);
       }
@@ -221,6 +230,12 @@ export default function PatientsPage() {
     return new Date(dateStr).toLocaleDateString();
   };
 
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      fetchPatients(newPage, searchTerm);
+    }
+  };
+
   if (loading && patients.length === 0) {
     return <div className={styles.loadingContainer}>Loading patients...</div>;
   }
@@ -230,18 +245,20 @@ export default function PatientsPage() {
       <div className={styles.patientListPanel}>
         <div className={styles.patientListHeader}>
           <h1>All Patients</h1>
-          <input
-            type="text"
-            placeholder="Search patients by name or phone..."
-            className={styles.searchInput}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <div className={styles.searchResultCount}>
-              Found {filteredPatients.length} patient{filteredPatients.length !== 1 ? 's' : ''}
-            </div>
-          )}
+          <div className={styles.searchContainer}>
+            <input
+              type="text"
+              placeholder="Search patients by name or phone..."
+              className={styles.searchInput}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <div className={styles.searchResultCount}>
+                Found {totalPatients} patient{totalPatients !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className={styles.patientList}>
@@ -280,6 +297,29 @@ export default function PatientsPage() {
             })
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className={styles.pagination}>
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={styles.paginationBtn}
+            >
+              ← Previous
+            </button>
+            <span className={styles.paginationInfo}>
+              Page {currentPage} of {totalPages} ({totalPatients} patients)
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={styles.paginationBtn}
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
 
       <div className={styles.patientActionsPanel}>
@@ -419,3 +459,13 @@ export default function PatientsPage() {
     </div>
   );
 }
+
+export default function PatientsPage() {
+  return (
+    <Suspense fallback={<div className={styles.loadingContainer}>Loading patients...</div>}>
+      <PatientsContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';

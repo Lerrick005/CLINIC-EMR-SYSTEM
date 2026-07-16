@@ -1,3 +1,4 @@
+
 import html2pdf from 'html2pdf.js';
 
 interface ClinicInfo {
@@ -234,14 +235,14 @@ class PDFService {
     `;
 
     const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5],
+      margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
       filename: `Medical_Referral_${referralNo}_${patientName.replace(/\s/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
 
-    await html2pdf().set(opt).from(element).save();
+    await (html2pdf() as any).set(opt).from(element).save();
   }
 
   async generateMedicalRecordPDF(patient: Patient, consultations: Consultation[], labOrders: LabOrder[], referrals: Referral[]): Promise<void> {
@@ -300,7 +301,7 @@ class PDFService {
             <span style="font-weight: bold;">📋 ${this.escapeHtml(r.referral_no || 'N/A')}</span>
             <span style="color: ${r.status === 'completed' ? '#10B981' : '#F59E0B'};">${this.getStatusText(r.status)}</span>
           </div>
-          <div style="font-size: 13px; color: #64748b;">${this.escapeHtml(r.specialty || 'General')} → ${this.escapeHtml(r.facility || 'N/A')}</div>
+          <div style="font-size: 13px; color: #64748b;">${this.escapeHtml(r.specialty || 'General')} → ${this.escapeHtml((r as any).facility || 'N/A')}</div>
           <div style="font-size: 13px; color: #64748b;">Reason: ${this.escapeHtml((r.reason_for_referral || '').substring(0, 100))}${(r.reason_for_referral || '').length > 100 ? '...' : ''}</div>
         </div>
       `).join('');
@@ -391,15 +392,17 @@ class PDFService {
     `;
 
     const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5],
+      margin: [0.5, 0.5, 0.5, 0.5] as [number, number, number, number],
       filename: `Medical_Record_${patientName.replace(/\s/g, '_')}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg' as const, quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
 
-    await html2pdf().set(opt).from(element).save();
+    await (html2pdf() as any).set(opt).from(element).save();
   }
 }
 
 export default PDFService;
+
+

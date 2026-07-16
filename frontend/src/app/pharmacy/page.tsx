@@ -3,20 +3,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 
-  const normalizeStatus = (status: string): PrescriptionStatus => {
-    const statusMap: Record<string, PrescriptionStatus> = {
-      'PENDING': 'pending',
-      'pending': 'pending',
-      'DISPENSED': 'dispensed',
-      'dispensed': 'dispensed',
-      'PARTIALLY_DISPENSED': 'partially_dispensed',
-      'partially_dispensed': 'partially_dispensed',
-      'CANCELLED': 'cancelled',
-      'cancelled': 'cancelled'
-    };
-    return statusMap[status] || 'pending';
-  };
-
 // ============= TYPES =============
 type PrescriptionStatus = 'pending' | 'partially_dispensed' | 'dispensed' | 'cancelled';
 
@@ -460,7 +446,7 @@ function HistoryModal({ prescription, isOpen, onClose }: HistoryModalProps) {
 }
 
 // ============= UTILITY FUNCTIONS =============
-const getStatusBadgeText = (status: PrescriptionStatus): JSX.Element => {
+const getStatusBadgeText = (status: PrescriptionStatus): React.ReactElement => {
   const configs = {
     'pending': { bg: '#FEF3C7', color: '#92400E', text: '⏳ Pending' },
     'partially_dispensed': { bg: '#DBEAFE', color: '#1E40AF', text: '⚠️ Partially Dispensed' },
@@ -650,7 +636,7 @@ export default function PharmacyPage() {
     setShowHistoryModal(true);
   };
 
-  const renderStats = (): JSX.Element => (
+  const renderStats = (): React.ReactElement => (
     <div style={{ 
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -744,7 +730,7 @@ export default function PharmacyPage() {
     </div>
   );
 
-  const renderFilters = (): JSX.Element => (
+  const renderFilters = (): React.ReactElement => (
     <div style={{
       display: 'flex',
       gap: '8px',
@@ -781,7 +767,7 @@ export default function PharmacyPage() {
     </div>
   );
 
-  const renderTable = (): JSX.Element => {
+  const renderTable = (): React.ReactElement => {
     if (prescriptions.length === 0) {
       return (
         <div style={{
@@ -1086,7 +1072,5 @@ export default function PharmacyPage() {
     </div>
   );
 }
-
-
 
 

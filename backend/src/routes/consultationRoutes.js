@@ -1,4 +1,5 @@
-﻿const express = require('express');
+﻿
+const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { tenantContext } = require('../middleware/tenantContext');
@@ -109,8 +110,6 @@ router.post('/', async (req, res, next) => {
   try {
     const db = req.db;
     const clinicId = req.clinicId;
-
-    console.log('📋 Consultation data received:', req.body);
 
     const {
       patient_id,

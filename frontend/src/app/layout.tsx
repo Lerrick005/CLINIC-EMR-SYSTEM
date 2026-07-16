@@ -9,8 +9,8 @@ import SuperAdminIndicator from '../components/SuperAdminIndicator';
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  // Don't show navbar on login or setup pages
-  const hideNavbar = pathname === '/login' || pathname === '/setup';
+  const publicPages = ['/login', '/setup', '/terms', '/privacy', '/refund', '/forgot-password', '/reset-password', '/auth/success'];
+  const hideNavbar = pathname ? publicPages.some(page => pathname.startsWith(page)) : false;
 
   return (
     <html lang="en">

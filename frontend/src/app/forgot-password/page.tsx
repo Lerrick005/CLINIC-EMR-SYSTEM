@@ -1,8 +1,10 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import styles from './forgot-password.module.css';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -18,7 +20,7 @@ export default function ForgotPasswordPage() {
     setMessage('');
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/forgot-password', {
+      const res = await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -48,13 +50,9 @@ export default function ForgotPasswordPage() {
           </div>
           <div className={styles.successMessage}>
             <p>{message}</p>
-            <p style={{ fontSize: '14px', color: '#666', marginTop: '12px' }}>
-              The link will expire in 1 hour.
-            </p>
+            <p style={{ fontSize: '14px', color: '#666', marginTop: '12px' }}>The link will expire in 1 hour.</p>
           </div>
-          <Link href="/login" className={styles.backLink}>
-            ← Back to Login
-          </Link>
+          <Link href="/login" className={styles.backLink}>← Back to Login</Link>
         </div>
       </div>
     );
@@ -63,33 +61,13 @@ export default function ForgotPasswordPage() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <div className={styles.header}>
-          <h1>🔒 Forgot Password</h1>
-          <p>Enter your email to reset your password</p>
-        </div>
-
+        <div className={styles.header}><h1>🔒 Forgot Password</h1><p>Enter your email to reset your password</p></div>
         {error && <div className={styles.error}>{error}</div>}
         {message && <div className={styles.message}>{message}</div>}
-
         <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.formGroup}>
-            <label>Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="doctor@clinic.com"
-              required
-            />
-          </div>
-
-          <button type="submit" className={styles.resetBtn} disabled={loading}>
-            {loading ? 'Sending...' : 'Send Reset Link'}
-          </button>
-
-          <div className={styles.footer}>
-            <p>Remember your password? <Link href="/login">Sign In</Link></p>
-          </div>
+          <div className={styles.formGroup}><label>Email Address</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="doctor@clinic.com" required /></div>
+          <button type="submit" className={styles.resetBtn} disabled={loading}>{loading ? 'Sending...' : 'Send Reset Link'}</button>
+          <div className={styles.footer}><p>Remember your password? <Link href="/login">Sign In</Link></p></div>
         </form>
       </div>
     </div>

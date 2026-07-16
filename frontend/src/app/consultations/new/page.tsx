@@ -1,13 +1,14 @@
+
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import api from '../../../lib/api';
 
-export default function NewConsultationPage() {
+function NewConsultationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const patientId = searchParams.get('patientId');
+  const patientId = searchParams?.get('patientId') || '';
   const [patient, setPatient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -117,7 +118,7 @@ export default function NewConsultationPage() {
     if (diagnosisInput.trim()) {
       setFormData({
         ...formData,
-        diagnoses: [...formData.diagnoses, { name: diagnosisInput }]
+        diagnoses: [...(formData.diagnoses || []), { name: diagnosisInput }] as any
       });
       setDiagnosisInput('');
       setErrors({ ...errors, diagnosis: null });
@@ -134,7 +135,7 @@ export default function NewConsultationPage() {
     if (medicationInput.name.trim()) {
       setFormData({
         ...formData,
-        medications: [...formData.medications, { ...medicationInput, id: Date.now() }]
+        medications: [...(formData.medications || []), { ...medicationInput, id: Date.now() }] as any
       });
       setMedicationInput({
         name: '',
@@ -178,7 +179,7 @@ export default function NewConsultationPage() {
       return;
     }
 
-    const primaryDiagnosis = formData.diagnoses.length > 0 ? formData.diagnoses[0].name : diagnosisInput.trim();
+    const primaryDiagnosis = (formData.diagnoses as any[]).length > 0 ? (formData.diagnoses as any[])[0].name : diagnosisInput.trim();
 
     const vitalsForBackend = {
       bp_systolic: formData.vitals.bp ? parseInt(formData.vitals.bp.split('/')[0]) : null,
@@ -403,7 +404,7 @@ export default function NewConsultationPage() {
                   <button type="button" onClick={handleAddDiagnosis} style={{ padding: '8px 16px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Add</button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-                  {formData.diagnoses.map((diag, index) => (
+                  {(formData.diagnoses as any[]).map((diag: any, index: number) => (
                     <span key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#f1f5f9', borderRadius: '12px', fontSize: '13px' }}>
                       📋 {diag.name}
                       <button type="button" onClick={() => handleRemoveDiagnosis(index)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>✕</button>
@@ -447,8 +448,8 @@ export default function NewConsultationPage() {
                   <button type="button" onClick={handleAddMedication} style={{ padding: '6px 12px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Add</button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {formData.medications.map((med, index) => (
-                    <div key={med.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                  {(formData.medications as any[]).map((med: any, index: number) => (
+                    <div key={med.id || index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
                       <span><strong>{med.name}</strong> {med.dose} {med.route} {med.frequency} {med.duration && `• ${med.duration}`}</span>
                       <span style={{ color: '#475569', fontSize: '12px' }}>{med.instructions}</span>
                       <button type="button" onClick={() => handleRemoveMedication(index)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>✕</button>
@@ -474,3 +475,14 @@ export default function NewConsultationPage() {
     </div>
   );
 }
+
+export default function NewConsultationPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '24px', color: '#475569' }}>Loading...</div>}>
+      <NewConsultationContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';
+

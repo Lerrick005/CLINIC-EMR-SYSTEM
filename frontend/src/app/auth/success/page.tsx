@@ -1,9 +1,9 @@
 ﻿'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function AuthSuccessPage() {
+function AuthSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -53,3 +53,8 @@ export default function AuthSuccessPage() {
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';
+
+
+export default function AuthSuccessPage() { return <Suspense fallback={<div>Loading...</div>}><AuthSuccessContent /></Suspense>; }

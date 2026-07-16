@@ -1,3 +1,4 @@
+
 /* ============================================
    PATIENTS PAGE - MEDICAL-GRADE THEME
    ============================================ */
@@ -54,6 +55,11 @@
   background: #2563EB;
   margin-top: 6px;
   border-radius: 2px;
+}
+
+.searchContainer {
+  width: 100%;
+  position: relative;
 }
 
 .searchInput {
@@ -211,6 +217,45 @@
 
 .addPatientBtn:hover {
   background: #1D4ED8;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid #E2E8F0;
+  flex-shrink: 0;
+  background: white;
+}
+
+.paginationBtn {
+  padding: 8px 16px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #0F172A;
+  transition: all 0.2s;
+}
+
+.paginationBtn:hover:not(:disabled) {
+  background: #2563EB;
+  color: white;
+  border-color: #2563EB;
+}
+
+.paginationBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.paginationInfo {
+  font-size: 14px;
+  color: #475569;
 }
 
 /* RIGHT PANEL - Patient Actions */
@@ -526,4 +571,7 @@
   .panelQuickStats { flex-wrap: wrap; }
   .quickStat { min-width: 80px; }
   .formRow { grid-template-columns: 1fr; }
+  .pagination { flex-wrap: wrap; gap: 8px; }
+  .paginationBtn { padding: 6px 12px; font-size: 12px; }
+  .paginationInfo { font-size: 12px; }
 }

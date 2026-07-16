@@ -71,7 +71,7 @@ export default function LabOrderDetail() {
 
   const fetchOrder = async () => {
     try {
-      const res = await api.get(`/lab-orders/${params.id}`);
+      const res = await api.get(`/lab-orders/${params?.id}`);
       if (res.data.success) {
         setOrder(res.data.order);
         setResults(res.data.results || []);
@@ -123,7 +123,7 @@ export default function LabOrderDetail() {
 
     setSaving(true);
     try {
-      const res = await api.post(`/lab-orders/${params.id}/results`, {
+      const res = await api.post(`/lab-orders/${params?.id}/results`, {
         results: results.filter((r) => r.parameter && r.value),
         result_notes: resultNotes,
         status: status,

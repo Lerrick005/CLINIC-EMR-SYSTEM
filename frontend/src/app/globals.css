@@ -2,6 +2,8 @@
    GLOBAL MEDICAL-GRADE THEME
    ============================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 :root {
   --primary: #2563EB;
   --primary-dark: #1D4ED8;
@@ -32,9 +34,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-/* Import Inter font */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* Scrollbar */
 ::-webkit-scrollbar {
@@ -88,6 +87,34 @@ body {
 
 .animate-slideIn {
   animation: slideIn 0.3s ease-out;
+}
+
+/* ============================================
+   TABLET & MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 1024px) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal {
+    width: 95% !important;
+    max-height: 90vh;
+    margin: 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .statsGrid, .formGrid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Print Styles */

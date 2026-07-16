@@ -1,8 +1,10 @@
 ﻿'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import api from '../../lib/api';
 import styles from './login.module.css';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,65 +16,71 @@ export default function LoginPage() {
   const appName = process.env.NEXT_PUBLIC_APP_NAME || 'CLINIC EMR';
   const redirectingRef = useRef(false);
 
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('accessToken');
+    if (token) {
+      localStorage.setItem('accessToken', token);
+      localStorage.setItem('refreshToken', params.get('refreshToken') || '');
+      localStorage.setItem('userId', params.get('userId') || '');
+      
+      fetch(`${API_URL}/auth/me`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          document.cookie = 'user=' + JSON.stringify(data.user) + '; path=/; max-age=86400';
+          window.location.href = data.user.role === 'SUPER_ADMIN' ? '/super-admin' : '/dashboard';
+        }
+      });
+    }
+  }
+
   const handleLogoClick = () => {
     setLogoClicks(prev => {
       const newClicks = prev + 1;
-      if (newClicks >= 5) {
-        setSuperAdminMode(true);
-        return 0;
-      }
+      if (newClicks >= 5) { setSuperAdminMode(true); return 0; }
       return newClicks;
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (redirectingRef.current) return;
-
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     try {
       const res = await api.post('/auth/login', { email, password });
-
       localStorage.setItem('accessToken', res.data.accessToken);
       document.cookie = 'accessToken=' + res.data.accessToken + '; path=/; max-age=86400';
       localStorage.setItem('refreshToken', res.data.refreshToken);
       localStorage.setItem('userId', res.data.user.id);
       localStorage.setItem('user', JSON.stringify(res.data.user));
-
       redirectingRef.current = true;
 
-      if (res.data.user.role === 'SUPER_ADMIN') {
-        window.location.href = '/super-admin';
-        return;
-      }
+      if (res.data.user.role === 'SUPER_ADMIN') { window.location.href = '/super-admin'; return; }
 
       try {
         const setupRes = await api.get('/setup/status');
         window.location.href = setupRes.data.completed ? '/dashboard' : '/setup';
       } catch (setupErr) {
-        console.error('Setup status check failed:', setupErr);
-        setError('Login succeeded but could not load dashboard. Please try again.');
-        setLoading(false);
-        redirectingRef.current = false;
+        setError('Login succeeded but could not load dashboard.');
+        setLoading(false); redirectingRef.current = false;
       }
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.error || 'Invalid email or password');
-      setLoading(false);
-      redirectingRef.current = false;
+      setLoading(false); redirectingRef.current = false;
     }
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:3001/api/auth/google';
+    window.location.href = `${API_URL.replace('/api', '')}/api/auth/google`;
   };
 
   return (
     <div className={styles.container}>
-      <div className={styles.bg}>
-        <div className={styles.bgOverlay}></div>
-      </div>
-
+      <div className={styles.bg}><div className={styles.bgOverlay}></div></div>
       <div className={styles.card}>
         <div className={styles.header}>
           <h1 className={styles.logo} onClick={handleLogoClick} style={{ cursor: 'default', userSelect: 'none' }}>
@@ -81,59 +89,16 @@ export default function LoginPage() {
           </h1>
           <p className={styles.subtitle}>{superAdminMode ? 'Super Admin Access' : 'Sign in to continue'}</p>
         </div>
-        {error && (
-          <div className={styles.error}>
-            <span>!</span>
-            {error}
-          </div>
-        )}
+        {error && <div className={styles.error}><span>!</span>{error}</div>}
         <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.inputGroup}>
-            <label className={styles.label}>Email Address</label>
-            <input
-              type="email"
-              className={styles.input}
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder={superAdminMode ? 'superadmin@system.com' : 'doctor@clinic.com'}
-              required
-            />
-          </div>
-          <div className={styles.inputGroup}>
-            <label className={styles.label}>Password</label>
-            <input
-              type="password"
-              className={styles.input}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-          <div className={styles.options}>
-            <label className={styles.checkbox}>
-              <input type="checkbox" /> Remember me
-            </label>
-            <Link href="/forgot-password" className={styles.forgotLink}>
-              Forgot password?
-            </Link>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className={styles.loginBtn}
-            style={superAdminMode ? { background: '#F59E0B', borderColor: '#D97706' } : {}}
-          >
-            {loading ? 'Signing in...' : superAdminMode ? '🔓 Access Super Admin' : 'Sign In'}
-          </button>
+          <div className={styles.inputGroup}><label className={styles.label}>Email Address</label><input type="email" className={styles.input} value={email} onChange={e => setEmail(e.target.value)} placeholder={superAdminMode ? 'superadmin@system.com' : 'doctor@clinic.com'} required /></div>
+          <div className={styles.inputGroup}><label className={styles.label}>Password</label><input type="password" className={styles.input} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required /></div>
+          <div className={styles.options}><label className={styles.checkbox}><input type="checkbox" /> Remember me</label><Link href="/forgot-password" className={styles.forgotLink}>Forgot password?</Link></div>
+          <button type="submit" disabled={loading} className={styles.loginBtn} style={superAdminMode ? { background: '#F59E0B', borderColor: '#D97706' } : {}}>{loading ? 'Signing in...' : superAdminMode ? '🔓 Access Super Admin' : 'Sign In'}</button>
         </form>
         {!superAdminMode && (
           <>
-            <div className={styles.divider}>
-              <span className={styles.dividerLine}></span>
-              <span className={styles.dividerText}>Or continue with</span>
-              <span className={styles.dividerLine}></span>
-            </div>
+            <div className={styles.divider}><span className={styles.dividerLine}></span><span className={styles.dividerText}>Or continue with</span><span className={styles.dividerLine}></span></div>
             <button type="button" onClick={handleGoogleLogin} className={styles.googleBtn}>
               <svg className={styles.googleIcon} viewBox="0 0 24 24" width="20" height="20">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -160,3 +125,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+

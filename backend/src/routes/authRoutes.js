@@ -21,9 +21,8 @@ router.post('/forgot-password', async (req, res, next) => {
       return res.status(404).json({ error: 'No account found with this email' });
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+    const resetTokenExpiry = new Date(Date.now() + 3600000);
 
     await db('users')
       .where({ id: user.id })
@@ -32,7 +31,6 @@ router.post('/forgot-password', async (req, res, next) => {
         reset_token_expiry: resetTokenExpiry
       });
 
-    // Send email
     const emailService = new EmailService();
     await emailService.sendPasswordReset(email, resetToken);
 
@@ -71,7 +69,6 @@ router.post('/reset-password', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
-    // Update password
     const hashedPassword = await authService.hashPassword(newPassword);
     await db('users')
       .where({ id: user.id })
@@ -150,13 +147,35 @@ router.get('/me', tenantContext, (req, res) => {
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 router.get('/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { 
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`
+  }),
   (req, res) => {
     const authService = new AuthService(req.db);
     const accessToken = authService.generateAccessToken(req.user);
     const refreshToken = authService.generateRefreshToken(req.user);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/dashboard?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}`);
+    
+    const redirectPath = '/login';
+    res.send(`
+      <html>
+        <head><title>Login Successful</title></head>
+        <body style="font-family:Arial;text-align:center;padding-top:50px;">
+          <h2>✅ Login Successful</h2>
+          <p>Redirecting to dashboard...</p>
+          <p>If not redirected automatically, <a href="${frontendUrl}${redirectPath}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}">click here</a></p>
+          <script>
+            // Try to redirect the main window (if opened from popup)
+            if (window.opener) {
+              window.opener.location.href = '${frontendUrl}${redirectPath}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}';
+              window.close();
+            } else {
+              window.location.href = '${frontendUrl}${redirectPath}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}';
+            }
+          </script>
+        </body>
+      </html>
+    `);
   }
 );
 
@@ -185,7 +204,6 @@ router.post('/register-clinic', async (req, res, next) => {
       return res.status(400).json({ error: 'Clinic name, admin email, and password are required' });
     }
 
-    // Check if clinic email already exists
     const existingClinic = await db('clinics').where({ email: clinicEmail }).first();
     if (existingClinic) {
       return res.status(409).json({ error: 'A clinic with this email already exists' });
@@ -233,13 +251,11 @@ router.post('/register-clinic', async (req, res, next) => {
 
       await trx.commit();
 
-      // Send welcome email
       try {
         const emailService = new EmailService();
         await emailService.sendWelcomeEmail(adminEmail, adminName);
       } catch (emailError) {
         console.error('Welcome email error:', emailError);
-        // Don't fail registration if email fails
       }
 
       res.status(201).json({
@@ -260,11 +276,10 @@ router.post('/register-clinic', async (req, res, next) => {
   }
 });
 
-
 // ============================================
 // VERIFY SUPER ADMIN PASSWORD
 // ============================================
-router.post('/verify-super-admin', async (req, res, next) => {
+router.post('/verify-super-admin', tenantContext, async (req, res, next) => {
   try {
     const db = req.db;
     const authService = new AuthService(db);
@@ -274,16 +289,18 @@ router.post('/verify-super-admin', async (req, res, next) => {
       return res.status(400).json({ error: 'Password is required' });
     }
 
-    // Get the SUPER_ADMIN user
+    if (req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const user = await db('users')
-      .where({ role: 'SUPER_ADMIN', is_active: true })
+      .where({ id: req.user.id, role: 'SUPER_ADMIN', is_active: true })
       .first();
 
     if (!user) {
       return res.status(401).json({ error: 'Super admin not found' });
     }
 
-    // Verify the password
     const isValid = await authService.comparePassword(password, user.password_hash);
 
     if (!isValid) {

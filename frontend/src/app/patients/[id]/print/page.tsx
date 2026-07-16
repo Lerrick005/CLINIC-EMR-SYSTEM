@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -62,8 +63,8 @@ export default function PrintMedicalRecord() {
     try {
       const [clinicRes, patientRes, consultationsRes] = await Promise.all([
         api.get('/config/clinic'),
-        api.get(`/patients/${params.id}`),
-        api.get(`/consultations/patient/${params.id}`)
+        api.get(`/patients/${params?.id}`),
+        api.get(`/consultations/patient/${params?.id}`)
       ]);
 
       if (clinicRes.data.success) {

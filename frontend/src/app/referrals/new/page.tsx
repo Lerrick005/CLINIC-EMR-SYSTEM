@@ -1,18 +1,39 @@
-﻿'use client';
+﻿
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../../lib/api';
 import styles from './new.module.css';
 
-export default function NewReferralPage() {
+interface Patient {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+}
+
+interface FormData {
+  patient_id: string;
+  specialty: string;
+  urgency: string;
+  status: string;
+  reason_for_referral: string;
+  clinical_notes: string;
+  facility_name: string;
+  facility_address: string;
+  facility_phone: string;
+  contact_person: string;
+}
+
+function NewReferralContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const patientIdParam = searchParams?.get('patientId');
 
   const [loading, setLoading] = useState(false);
-  const [patients, setPatients] = useState([]);
-  const [formData, setFormData] = useState({
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [formData, setFormData] = useState<FormData>({
     patient_id: patientIdParam || '',
     specialty: '',
     urgency: 'routine',
@@ -68,7 +89,7 @@ export default function NewReferralPage() {
     }
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
@@ -76,7 +97,7 @@ export default function NewReferralPage() {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.patient_id || !formData.specialty || !formData.reason_for_referral) {
       alert('Please fill in all required fields');
@@ -87,14 +108,14 @@ export default function NewReferralPage() {
     try {
       const res = await api.post('/referrals', formData);
       if (res.data.success) {
-        alert('Referral created successfully!');
+        alert('✅ Referral created successfully!');
         router.push('/referrals');
       } else {
-        alert('Failed to create referral');
+        alert('❌ Failed to create referral');
       }
     } catch (error) {
       console.error('Error creating referral:', error);
-      alert('Error creating referral');
+      alert('❌ Error creating referral');
     } finally {
       setLoading(false);
     }
@@ -245,3 +266,13 @@ export default function NewReferralPage() {
     </div>
   );
 }
+
+export default function NewReferralPage() {
+  return (
+    <Suspense fallback={<div className={styles.loading}>Loading...</div>}>
+      <NewReferralContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';

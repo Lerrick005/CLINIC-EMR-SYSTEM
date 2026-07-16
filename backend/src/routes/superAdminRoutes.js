@@ -10,41 +10,16 @@ const { isSuperAdmin } = require('../middleware/superAdmin');
 router.get('/clinics', isSuperAdmin, async (req, res, next) => {
   try {
     const db = req.db;
-
     const clinics = await db('clinics')
-      .select(
-        'id', 
-        'name', 
-        'mfl_code', 
-        'county', 
-        'subcounty', 
-        'ward', 
-        'address', 
-        'phone', 
-        'email', 
-        'is_active',
-        'is_legacy',
-        'subscription_status',
-        'subscription_ends_at',
-        'created_at'
-      )
+      .select('id', 'name', 'mfl_code', 'county', 'subcounty', 'ward', 'address', 'phone', 'email', 'is_active', 'is_legacy', 'subscription_status', 'subscription_ends_at', 'created_at')
       .orderBy('name', 'asc');
 
-    // Get user count for each clinic
     for (const clinic of clinics) {
-      const userCount = await db('users')
-        .where({ clinic_id: clinic.id, is_active: true })
-        .count('id as count')
-        .first();
+      const userCount = await db('users').where({ clinic_id: clinic.id, is_active: true }).count('id as count').first();
       clinic.user_count = parseInt(userCount?.count || 0);
-      
-      const patientCount = await db('patients')
-        .where({ clinic_id: clinic.id, is_active: true })
-        .count('id as count')
-        .first();
+      const patientCount = await db('patients').where({ clinic_id: clinic.id, is_active: true }).count('id as count').first();
       clinic.patient_count = parseInt(patientCount?.count || 0);
     }
-
     res.json({ success: true, clinics });
   } catch (err) {
     console.error('Error fetching clinics:', err);
@@ -52,181 +27,66 @@ router.get('/clinics', isSuperAdmin, async (req, res, next) => {
   }
 });
 
-
 // ============================================
-// TEST ENDPOINT - Verify token works
+// TEST ENDPOINT
 // ============================================
-router.get('/test', isSuperAdmin, async (req, res, next) => {
-  try {
-    res.json({ 
-      success: true, 
-      message: 'Super Admin token is working!',
-      user: req.user 
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/test', isSuperAdmin, async (req, res) => {
+  res.json({ success: true, message: 'Super Admin token is working!', user: req.user });
 });
 
-
 // ============================================
-// CREATE CLINIC (Super Admin only)
+// CREATE CLINIC
 // ============================================
-router.post('/clinics', isSuperAdmin, async (req, res, next) => {
+router.post('/clinics', isSuperAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const { 
-      name, 
-      mflCode, 
-      county, 
-      subcounty, 
-      ward, 
-      address, 
-      phone, 
-      email,
-      adminEmail,
-      adminPassword,
-      adminFirstName,
-      adminLastName,
-      isLegacy = false
-    } = req.body;
+    const { name, mflCode, county, subcounty, ward, address, phone, email, adminEmail, adminPassword, adminFirstName, adminLastName, isLegacy = false } = req.body;
 
-    console.log('📝 Creating clinic:', { name, adminEmail, isLegacy });
+    if (!name) return res.status(400).json({ error: 'Clinic name is required' });
+    if (!adminEmail || !adminPassword) return res.status(400).json({ error: 'Admin email and password are required' });
+    if (adminPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
-    // Validate required fields
-    if (!name) {
-      return res.status(400).json({ error: 'Clinic name is required' });
-    }
-    if (!adminEmail || !adminPassword) {
-      return res.status(400).json({ error: 'Admin email and password are required' });
-    }
-    if (adminPassword.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
+    const existingClinic = await db('clinics').where({ name }).first();
+    if (existingClinic) return res.status(400).json({ error: 'Clinic with this name already exists' });
 
-    // Check if clinic already exists
-    const existingClinic = await db('clinics')
-      .where({ name })
-      .first();
+    const existingUser = await db('users').where({ email: adminEmail }).first();
+    if (existingUser) return res.status(400).json({ error: 'Admin email already registered' });
 
-    if (existingClinic) {
-      return res.status(400).json({ error: 'Clinic with this name already exists' });
-    }
-
-    // Check if admin email already exists
-    const existingUser = await db('users')
-      .where({ email: adminEmail })
-      .first();
-
-    if (existingUser) {
-      return res.status(400).json({ error: 'Admin email already registered' });
-    }
-
-    // Create clinic
     const clinicId = uuidv4();
     await db('clinics').insert({
-      id: clinicId,
-      name,
-      mfl_code: mflCode || '',
-      county: county || '',
-      subcounty: subcounty || '',
-      ward: ward || '',
-      address: address || '',
-      phone: phone || '',
-      email: email || '',
-      is_active: true,
-      is_legacy: isLegacy || false,
+      id: clinicId, name, mfl_code: mflCode || '', county: county || '', subcounty: subcounty || '',
+      ward: ward || '', address: address || '', phone: phone || '', email: email || '',
+      is_active: true, is_legacy: isLegacy || false,
       subscription_status: isLegacy ? 'LEGACY' : 'TRIAL',
       subscription_ends_at: isLegacy ? null : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      created_at: db.fn.now(),
-      updated_at: db.fn.now()
+      created_at: db.fn.now(), updated_at: db.fn.now()
     });
 
-    // Create admin user for the clinic
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
     const userId = uuidv4();
     await db('users').insert({
-      id: userId,
-      clinic_id: clinicId,
-      email: adminEmail,
-      password_hash: hashedPassword,
-      first_name: adminFirstName || 'Clinic',
-      last_name: adminLastName || 'Admin',
-      role: 'CLINIC_ADMIN',
-      is_active: true,
-      created_at: db.fn.now(),
-      updated_at: db.fn.now()
+      id: userId, clinic_id: clinicId, email: adminEmail, password_hash: hashedPassword,
+      first_name: adminFirstName || 'Clinic', last_name: adminLastName || 'Admin',
+      role: 'CLINIC_ADMIN', is_active: true, created_at: db.fn.now(), updated_at: db.fn.now()
     });
 
-    console.log('✅ Clinic created:', clinicId);
-
-    res.status(201).json({
-      success: true,
-      message: 'Clinic created successfully',
-      clinic: {
-        id: clinicId,
-        name,
-        mflCode,
-        county,
-        subcounty,
-        ward,
-        isLegacy,
-        subscriptionStatus: isLegacy ? 'LEGACY' : 'TRIAL'
-      },
-      admin: {
-        email: adminEmail,
-        firstName: adminFirstName || 'Clinic',
-        lastName: adminLastName || 'Admin'
-      }
-    });
+    res.status(201).json({ success: true, message: 'Clinic created', clinic: { id: clinicId, name }, admin: { email: adminEmail } });
   } catch (err) {
-    console.error('❌ Error creating clinic:', err);
+    console.error('Error creating clinic:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
 // ============================================
-// UPDATE CLINIC (Super Admin only)
+// UPDATE CLINIC
 // ============================================
-router.put('/clinics/:id', isSuperAdmin, async (req, res, next) => {
+router.put('/clinics/:id', isSuperAdmin, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
-    const { 
-      name, 
-      mflCode, 
-      county, 
-      subcounty, 
-      ward, 
-      address, 
-      phone, 
-      email,
-      is_active,
-      is_legacy,
-      subscription_status
-    } = req.body;
-
-    await db('clinics')
-      .where({ id })
-      .update({
-        name,
-        mfl_code: mflCode,
-        county,
-        subcounty,
-        ward,
-        address,
-        phone,
-        email,
-        is_active,
-        is_legacy,
-        subscription_status,
-        updated_at: db.fn.now()
-      });
-
-    res.json({
-      success: true,
-      message: 'Clinic updated successfully'
-    });
+    const { name, mflCode, county, subcounty, ward, address, phone, email, is_active, is_legacy, subscription_status } = req.body;
+    await db('clinics').where({ id }).update({ name, mfl_code: mflCode, county, subcounty, ward, address, phone, email, is_active, is_legacy, subscription_status, updated_at: db.fn.now() });
+    res.json({ success: true, message: 'Clinic updated' });
   } catch (err) {
     console.error('Error updating clinic:', err);
     res.status(500).json({ error: err.message });
@@ -234,38 +94,97 @@ router.put('/clinics/:id', isSuperAdmin, async (req, res, next) => {
 });
 
 // ============================================
-// DELETE/DEACTIVATE CLINIC (Super Admin only)
+// DEACTIVATE CLINIC
 // ============================================
-router.delete('/clinics/:id', isSuperAdmin, async (req, res, next) => {
+router.delete('/clinics/:id', isSuperAdmin, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
-
-    await db('clinics')
-      .where({ id })
-      .update({
-        is_active: false,
-        updated_at: db.fn.now()
-      });
-
-    // Also deactivate all users for this clinic
-    await db('users')
-      .where({ clinic_id: id })
-      .update({
-        is_active: false,
-        updated_at: db.fn.now()
-      });
-
-    res.json({
-      success: true,
-      message: 'Clinic deactivated successfully'
-    });
+    await db('clinics').where({ id }).update({ is_active: false, updated_at: db.fn.now() });
+    await db('users').where({ clinic_id: id }).update({ is_active: false, updated_at: db.fn.now() });
+    res.json({ success: true, message: 'Clinic deactivated' });
   } catch (err) {
     console.error('Error deactivating clinic:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// ============================================
+// REACTIVATE CLINIC
+// ============================================
+router.post('/clinics/:id/reactivate', isSuperAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    await db('clinics').where({ id }).update({ is_active: true, updated_at: db.fn.now() });
+    await db('users').where({ clinic_id: id }).update({ is_active: true, updated_at: db.fn.now() });
+    res.json({ success: true, message: 'Clinic reactivated' });
+  } catch (err) {
+    console.error('Error reactivating clinic:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// GET CLINIC USERS
+// ============================================
+router.get('/clinics/:id/users', isSuperAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const users = await db('users').where({ clinic_id: id }).select('id', 'email', 'first_name', 'last_name', 'role', 'is_active', 'last_login', 'created_at').orderBy('role', 'asc');
+    res.json({ success: true, users });
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// RESET CLINIC ADMIN PASSWORD
+// ============================================
+router.post('/clinics/:id/reset-password', isSuperAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const adminUser = await db('users').where({ clinic_id: id, role: 'CLINIC_ADMIN', is_active: true }).first();
+    if (!adminUser) return res.status(404).json({ error: 'No active admin found' });
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await db('users').where({ id: adminUser.id }).update({ password_hash: hashedPassword, updated_at: db.fn.now() });
+    res.json({ success: true, message: `Password reset for ${adminUser.email}` });
+  } catch (err) {
+    console.error('Error resetting password:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// PERMANENT DELETE CLINIC (Super Admin only)
+// ============================================
+router.delete('/clinics/:id/permanent', isSuperAdmin, async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+
+    // Delete all related data
+    await db('audit_logs').where({ clinic_id: id }).del();
+    await db('notifications').where({ clinic_id: id }).del();
+    await db('lab_results').whereIn('lab_order_id', db('lab_orders').where({ clinic_id: id }).select('id')).del();
+    await db('lab_orders').where({ clinic_id: id }).del();
+    await db('prescriptions').where({ clinic_id: id }).del();
+    await db('consultations').where({ clinic_id: id }).del();
+    await db('referrals').where({ clinic_id: id }).del();
+    await db('patients').where({ clinic_id: id }).del();
+    await db('users').where({ clinic_id: id }).del();
+    await db('clinics').where({ id }).del();
+
+    res.json({ success: true, message: 'Clinic permanently deleted with all data' });
+  } catch (err) {
+    console.error('Error deleting clinic:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
-
-

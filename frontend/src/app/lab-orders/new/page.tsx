@@ -1,18 +1,43 @@
-﻿'use client';
+﻿
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '../../../lib/api';
 import styles from './new.module.css';
 
-export default function NewLabOrder() {
+interface Patient {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+}
+
+interface FormData {
+  patient_id: string;
+  test_name: string;
+  test_code: string;
+  test_category: string;
+  priority: string;
+  fasting_required: boolean;
+  clinical_notes: string;
+  amount_due: number;
+}
+
+interface PriorityOption {
+  value: string;
+  label: string;
+  color: string;
+}
+
+function NewLabOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const patientIdParam = searchParams?.get('patientId');
 
   const [loading, setLoading] = useState(false);
-  const [patients, setPatients] = useState([]);
-  const [formData, setFormData] = useState({
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [formData, setFormData] = useState<FormData>({
     patient_id: patientIdParam || '',
     test_name: '',
     test_code: '',
@@ -23,10 +48,10 @@ export default function NewLabOrder() {
     amount_due: 0,
   });
 
-  const priorities = [
+  const priorities: PriorityOption[] = [
     { value: 'routine', label: 'Routine (🟢)', color: '#10B981' },
     { value: 'urgent', label: 'Urgent (🟡)', color: '#F59E0B' },
-    { value: 'stat', label: 'STAT  ', color: '#F97316' },
+    { value: 'stat', label: 'STAT (🟠)', color: '#F97316' },
     { value: 'emergency', label: 'Emergency (🔴)', color: '#EF4444' },
   ];
 
@@ -45,15 +70,16 @@ export default function NewLabOrder() {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.patient_id || !formData.test_name) {
       alert('Please select a patient and enter test name');
@@ -64,14 +90,14 @@ export default function NewLabOrder() {
     try {
       const res = await api.post('/lab-orders', formData);
       if (res.data.success) {
-        alert('Lab order created successfully!');
+        alert('✅ Lab order created successfully!');
         router.push('/lab-orders');
       } else {
-        alert('âŒ Failed to create lab order');
+        alert('❌ Failed to create lab order');
       }
     } catch (error) {
       console.error('Error creating lab order:', error);
-      alert('âŒ Error creating lab order');
+      alert('❌ Error creating lab order');
     } finally {
       setLoading(false);
     }
@@ -207,4 +233,15 @@ export default function NewLabOrder() {
     </div>
   );
 }
+
+export default function NewLabOrderPage() {
+  return (
+    <Suspense fallback={<div className={styles.loading}>Loading...</div>}>
+      <NewLabOrderContent />
+    </Suspense>
+  );
+}
+
+export const dynamic = 'force-dynamic';
+
 

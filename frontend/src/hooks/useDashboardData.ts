@@ -1,5 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+﻿
+import { useState, useEffect } from 'react';
 import { DashboardStats, WeeklyData, Diagnosis } from '@/types/dashboard';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export function useDashboardData() {
   const [loading, setLoading] = useState(true);
@@ -32,12 +35,12 @@ export function useDashboardData() {
     setLoading(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       const [statsRes, weeklyRes, diagnosesRes] = await Promise.all([
-        fetch('http://localhost:3001/api/dashboard/stats', { headers }),
-        fetch('http://localhost:3001/api/consultations/stats/weekly', { headers }),
-        fetch('http://localhost:3001/api/consultations/stats/top-diagnoses?limit=5', { headers })
+        fetch(`${API_URL}/dashboard/stats`, { headers }),
+        fetch(`${API_URL}/consultations/stats/weekly`, { headers }),
+        fetch(`${API_URL}/consultations/stats/top-diagnoses?limit=5`, { headers })
       ]);
 
       if (statsRes.ok) {
@@ -89,3 +92,4 @@ export function useDashboardData() {
     peakDay
   };
 }
+

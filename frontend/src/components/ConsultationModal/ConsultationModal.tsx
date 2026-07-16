@@ -1,3 +1,4 @@
+﻿
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -25,7 +26,12 @@ const childrenDiseases = [
   { id: 5, keywords: ['measles'], name: 'Measles' },
 ];
 
-const findDisease = (diagnosis, isChild) => {
+interface Disease {
+  id: number;
+  name: string;
+}
+
+const findDisease = (diagnosis: string, isChild: boolean): Disease | null => {
   if (!diagnosis) return null;
   const lowerDiagnosis = diagnosis.toLowerCase();
   const diseaseList = isChild ? childrenDiseases : adultDiseases;
@@ -47,11 +53,27 @@ interface ConsultationModalProps {
   currentDoctor?: any;
 }
 
+interface Diagnosis {
+  name: string;
+  diseaseId: number | null;
+  diseaseName: string;
+}
+
+interface Medication {
+  id: number;
+  name: string;
+  dose: string;
+  frequency: string;
+  route: string;
+  duration: string;
+  instructions: string;
+}
+
 export default function ConsultationModal({ isOpen, onClose, patient, onSave, currentDoctor: propCurrentDoctor }: ConsultationModalProps) {
-  const [activeTab, setActiveTab] = useState('soap');
-  const [diagnosisInput, setDiagnosisInput] = useState('');
-  const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('soap');
+  const [diagnosisInput, setDiagnosisInput] = useState<string>('');
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [saving, setSaving] = useState<boolean>(false);
   const [currentDoctor, setCurrentDoctor] = useState<any>(null);
 
   // Get doctor from props or localStorage
@@ -66,7 +88,6 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
           const parsed = JSON.parse(user);
           if (parsed.id) {
             setCurrentDoctor(parsed);
-            console.log('✅ Doctor loaded from localStorage:', parsed.firstName, parsed.lastName);
           }
         }
       } catch (e) {
@@ -106,13 +127,13 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
       abdominal: '',
       neurological: ''
     },
-    diagnoses: [],
+    diagnoses: [] as Diagnosis[],
     differential: '',
     treatmentPlan: '',
     followUpPlan: '',
     amountDue: '',
     patientEducation: '',
-    medications: []
+    medications: [] as Medication[]
   });
 
   const [medicationInput, setMedicationInput] = useState({
@@ -127,7 +148,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
   const frequencies = ['QD', 'BID', 'TID', 'QID', 'QHS', 'PRN', 'STAT'];
   const routes = ['PO', 'IV', 'IM', 'SC', 'SL', 'PR', 'TOP'];
 
-  const getPatientAge = () => {
+  const getPatientAge = (): number => {
     if (patient?.age) return parseInt(patient.age);
     if (patient?.date_of_birth) {
       const birthDate = new Date(patient.date_of_birth);
@@ -145,7 +166,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
   const patientAge = getPatientAge();
   const isChild = patientAge < 18;
 
-  const calculateBMI = () => {
+  const calculateBMI = (): void => {
     const weight = parseFloat(formData.vitals.weight);
     const height = parseFloat(formData.vitals.height);
     if (weight && height) {
@@ -154,7 +175,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
     }
   };
 
-  const handleAddDiagnosis = () => {
+  const handleAddDiagnosis = (): void => {
     if (diagnosisInput.trim()) {
       const disease = findDisease(diagnosisInput, isChild);
       setFormData({
@@ -166,17 +187,17 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
         }]
       });
       setDiagnosisInput('');
-      setErrors({ ...errors, diagnosis: null });
+      setErrors({ ...errors, diagnosis: '' });
     }
   };
 
-  const handleRemoveDiagnosis = (index) => {
+  const handleRemoveDiagnosis = (index: number): void => {
     const newDiag = [...formData.diagnoses];
     newDiag.splice(index, 1);
     setFormData({ ...formData, diagnoses: newDiag });
   };
 
-  const handleAddMedication = () => {
+  const handleAddMedication = (): void => {
     if (medicationInput.name.trim()) {
       setFormData({
         ...formData,
@@ -193,14 +214,14 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
     }
   };
 
-  const handleRemoveMedication = (index) => {
+  const handleRemoveMedication = (index: number): void => {
     const newMeds = [...formData.medications];
     newMeds.splice(index, 1);
     setFormData({ ...formData, medications: newMeds });
   };
 
-  const validate = () => {
-    const newErrors = {};
+  const validate = (): { [key: string]: string } => {
+    const newErrors: { [key: string]: string } = {};
     if (!formData.chiefComplaint.trim()) {
       newErrors.chiefComplaint = 'Chief complaint is required';
     }
@@ -210,7 +231,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
     return newErrors;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
 
     // Use the doctor we already have
@@ -226,7 +247,6 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
           if (parsed.id) {
             doctorId = parsed.id;
             doctorName = `Dr. ${parsed.firstName} ${parsed.lastName}`;
-            console.log('✅ Doctor found in localStorage on submit:', doctorName);
           }
         }
       } catch (e) {
@@ -357,7 +377,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
                     value={formData.chiefComplaint}
                     onChange={(e) => {
                       setFormData({...formData, chiefComplaint: e.target.value});
-                      setErrors({...errors, chiefComplaint: null});
+                      setErrors({...errors, chiefComplaint: ''});
                     }}
                     placeholder="What is the patient's main concern?"
                   />
@@ -439,7 +459,7 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
                     {formData.diagnoses.map((diag, index) => (
                       <div key={index} className={styles.diagnosisTag}>
                         <span>📋 {diag.name}</span>
-                        {diag.diseaseId && <span className={styles.diseaseBadge}>✓</span>}
+                        {diag.diseaseId && <span className={styles.diseaseBadge}>✅</span>}
                         <button type="button" onClick={() => handleRemoveDiagnosis(index)}>✕</button>
                       </div>
                     ))}
@@ -546,3 +566,4 @@ export default function ConsultationModal({ isOpen, onClose, patient, onSave, cu
     </div>
   );
 }
+

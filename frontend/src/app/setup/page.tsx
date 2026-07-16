@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import '../globals.css';
@@ -56,7 +56,8 @@ export default function SetupWizard() {
     }
 
     try {
-      const res = await fetch('http://localhost:3001/api/setup/init', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${API_URL}/setup/init`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ superAdmin, clinic, admin })

@@ -1,0 +1,32 @@
+﻿    useEffect(() => {
+      // Handle Google OAuth tokens
+      const accessToken = searchParams.get('accessToken');
+      const refreshToken = searchParams.get('refreshToken');
+      const userId = searchParams.get('userId');
+
+      if (accessToken && refreshToken && userId) {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('userId', userId);
+
+        // Fetch user data to get role for super admin redirect
+        fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + accessToken }
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+            if (data.user.role === 'SUPER_ADMIN') {
+              window.location.href = '/super-admin';
+              return;
+            }
+          }
+        })
+        .catch(err => console.error('Failed to fetch user:', err));
+
+        window.history.replaceState({}, '', '/dashboard');
+      }
+
+      fetchDashboardData();
+    }, [searchParams]);

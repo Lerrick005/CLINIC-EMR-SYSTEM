@@ -1,9 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { v4: uuidv4 } = require('uuid');
 
 module.exports = function(passport, db) {
-  // Read environment variables with fallbacks for debugging
   const clientID = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const callbackURL = process.env.GOOGLE_CALLBACK_URL;
@@ -14,8 +12,8 @@ module.exports = function(passport, db) {
   console.log('  GOOGLE_CALLBACK_URL:', callbackURL || '❌ MISSING');
 
   if (!clientID || !clientSecret || !callbackURL) {
-    console.error('❌ Google OAuth credentials missing. Please check your .env file.');
-    return; // Don't initialize the strategy
+    console.error('❌ Google OAuth credentials missing.');
+    return;
   }
 
   passport.use(new GoogleStrategy({
@@ -24,32 +22,33 @@ module.exports = function(passport, db) {
     callbackURL: callbackURL
   }, async (accessToken, refreshToken, profile, done) => {
     try {
-      // Your existing logic to find or create user
+      const email = profile.emails?.[0]?.value;
+      console.log('🔍 Google login attempt:', email);
+
+      // Find user by google_id
       let user = await db('users').where({ google_id: profile.id }).first();
-      if (!user) {
-        const email = profile.emails[0].value;
-        user = await db('users').where({ email }).first();
-        if (user) {
-          await db('users').where({ id: user.id }).update({ google_id: profile.id });
-        } else {
-          const firstClinic = await db('clinics').first();
-          const id = uuidv4();
-          await db('users').insert({
-            id,
-            google_id: profile.id,
-            email,
-            first_name: profile.name.givenName,
-            last_name: profile.name.familyName,
-            role: 'CLINIC_ADMIN',
-            clinic_id: firstClinic?.id || null,
-            is_active: true,
-            password_hash: ''
-          });
-          user = await db('users').where({ id }).first();
-        }
+      
+      if (user) {
+        console.log('✅ Found by google_id:', user.email, 'Role:', user.role);
+        return done(null, user);
       }
-      return done(null, user);
+
+      // Find user by email (existing account, first Google login)
+      user = await db('users').where({ email }).first();
+      
+      if (user) {
+        // Link Google ID to existing account
+        await db('users').where({ id: user.id }).update({ google_id: profile.id });
+        console.log('✅ Linked Google to existing user:', user.email, 'Role:', user.role);
+        return done(null, user);
+      }
+
+      // User not found - reject. Only super admin can create accounts.
+      console.log('❌ Unknown user rejected:', email);
+      return done(null, false, { message: 'Account not found. Contact your administrator.' });
+
     } catch (err) {
+      console.error('❌ Google strategy error:', err);
       return done(err, null);
     }
   }));

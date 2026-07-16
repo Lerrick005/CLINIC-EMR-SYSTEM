@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -86,10 +87,10 @@ export default function MedicalRecordPage() {
     try {
       const [clinicRes, patientRes, consultationsRes, labRes, referralRes] = await Promise.all([
         api.get('/config/clinic'),
-        api.get(`/patients/${params.id}`),
-        api.get(`/consultations/patient/${params.id}`),
-        api.get(`/lab-orders/patient/${params.id}`).catch(() => ({ data: { labOrders: [] } })),
-        api.get(`/referrals/patient/${params.id}`).catch(() => ({ data: { referrals: [] } }))
+        api.get(`/patients/${params?.id}`),
+        api.get(`/consultations/patient/${params?.id}`),
+        api.get(`/lab-orders/patient/${params?.id}`).catch(() => ({ data: { labOrders: [] } })),
+        api.get(`/referrals/patient/${params?.id}`).catch(() => ({ data: { referrals: [] } }))
       ]);
 
       if (clinicRes.data.success) {

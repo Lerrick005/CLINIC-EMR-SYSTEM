@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -28,7 +29,7 @@ export default function ReferralDetailPage() {
   const fetchData = async () => {
     try {
       const [referralRes, clinicRes] = await Promise.all([
-        api.get(`/referrals/${params.id}`),
+        api.get(`/referrals/${params?.id}`),
         api.get('/config/clinic')
       ]);
 

@@ -16,8 +16,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    const isPublicRoute = publicRoutes.includes(pathname);
-    const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+    const currentPath = pathname || '';
+    const isPublicRoute = publicRoutes.includes(currentPath);
+    const isAdminRoute = adminRoutes.some(route => currentPath.startsWith(route));
 
     if (!token && !isPublicRoute) {
       router.push('/login');

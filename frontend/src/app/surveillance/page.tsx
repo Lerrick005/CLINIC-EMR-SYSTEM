@@ -41,57 +41,63 @@ const childrenDiseases = [
   "All Other Diseases"
 ];
 
-export default function DiseaseSurveillancePage() {
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState('adults');
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [diseaseCounts, setDiseaseCounts] = useState({});
-  const [lastSynced, setLastSynced] = useState('');
+interface DiseaseCounts {
+  [disease: string]: {
+    [day: number]: number;
+  };
+}
 
-  const monthNames = [
+export default function DiseaseSurveillancePage() {
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [activeTab, setActiveTab] = useState<string>('adults');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [diseaseCounts, setDiseaseCounts] = useState<DiseaseCounts>({});
+  const [lastSynced, setLastSynced] = useState<string>('');
+
+  const monthNames: string[] = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+  const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
-  const getYears = () => {
-    const currentYear = new Date().getFullYear();
-    const years = [];
-    for (let year = 2026; year <= currentYear + 50; year++) {
+  const getYears = (): number[] => {
+    const currentYear: number = new Date().getFullYear();
+    const years: number[] = [];
+    for (let year: number = 2026; year <= currentYear + 50; year++) {
       years.push(year);
     }
     return years;
   };
 
-  const getCurrentDiseases = () => {
+  const getCurrentDiseases = (): string[] => {
     return activeTab === 'adults' ? adultDiseases : childrenDiseases;
   };
 
-  const getDaysInMonth = () => {
+  const getDaysInMonth = (): number => {
     return new Date(selectedYear, selectedMonth + 1, 0).getDate();
   };
 
-  const initializeEmptyData = () => {
-    const diseases = getCurrentDiseases();
-    const days = getDaysInMonth();
-    const emptyData = {};
+  const initializeEmptyData = (): void => {
+    const diseases: string[] = getCurrentDiseases();
+    const days: number = getDaysInMonth();
+    const emptyData: DiseaseCounts = {};
     for (const disease of diseases) {
       emptyData[disease] = {};
-      for (let day = 1; day <= days; day++) {
+      for (let day: number = 1; day <= days; day++) {
         emptyData[disease][day] = 0;
       }
     }
     setDiseaseCounts(emptyData);
   };
 
-  const handleAutoSync = async () => {
+  const handleAutoSync = async (): Promise<void> => {
     setSyncing(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(API_BASE_URL + '/disease-surveillance/auto-sync', {
+      const response = await fetch(`${API_BASE_URL}/disease-surveillance/auto-sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -105,13 +111,13 @@ export default function DiseaseSurveillancePage() {
 
       const data = await response.json();
       if (data.success) {
-        const newCounts = JSON.parse(JSON.stringify(diseaseCounts));
+        const newCounts: DiseaseCounts = JSON.parse(JSON.stringify(diseaseCounts));
         const autoData = activeTab === 'adults' ? data.adults : data.children;
 
-        const diseases = getCurrentDiseases();
-        const days = getDaysInMonth();
+        const diseases: string[] = getCurrentDiseases();
+        const days: number = getDaysInMonth();
         for (const disease of diseases) {
-          for (let day = 1; day <= days; day++) {
+          for (let day: number = 1; day <= days; day++) {
             if (newCounts[disease]) {
               newCounts[disease][day] = 0;
             }
@@ -119,7 +125,7 @@ export default function DiseaseSurveillancePage() {
         }
 
         for (const dateStr in autoData) {
-          const day = parseInt(dateStr.split('-')[2]);
+          const day: number = parseInt(dateStr.split('-')[2]);
           const diseasesData = autoData[dateStr];
           for (const diseaseName in diseasesData) {
             if (newCounts[diseaseName]) {
@@ -142,10 +148,10 @@ export default function DiseaseSurveillancePage() {
     }
   };
 
-  const loadSurveillanceData = async () => {
+  const loadSurveillanceData = async (): Promise<void> => {
     try {
       const token = localStorage.getItem('accessToken');
-      const url = API_BASE_URL + '/disease-surveillance/data?month=' + monthNames[selectedMonth] + '&year=' + selectedYear + '&ageGroup=' + (activeTab === 'adults' ? 'ADULT' : 'CHILD');
+      const url = `${API_BASE_URL}/disease-surveillance/data?month=${monthNames[selectedMonth]}&year=${selectedYear}&ageGroup=${activeTab === 'adults' ? 'ADULT' : 'CHILD'}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': 'Bearer ' + token
@@ -154,38 +160,37 @@ export default function DiseaseSurveillancePage() {
 
       const data = await response.json();
       if (data.success && data.data && data.data.length > 0) {
-        const newCounts = JSON.parse(JSON.stringify(diseaseCounts));
-        const diseases = getCurrentDiseases();
-        const days = getDaysInMonth();
+        const newCounts: DiseaseCounts = JSON.parse(JSON.stringify(diseaseCounts));
+        const diseases: string[] = getCurrentDiseases();
+        const days: number = getDaysInMonth();
 
         for (const disease of diseases) {
           if (!newCounts[disease]) {
             newCounts[disease] = {};
           }
-          for (let day = 1; day <= days; day++) {
+          for (let day: number = 1; day <= days; day++) {
             newCounts[disease][day] = 0;
           }
         }
 
-        data.data.forEach(function(record) {
-          const day = new Date(record.diagnosis_date).getDate();
-          const diseaseName = record.disease_name;
+        data.data.forEach(function(record: any) {
+          const day: number = new Date(record.diagnosis_date).getDate();
+          const diseaseName: string = record.disease_name;
           if (newCounts[diseaseName]) {
             newCounts[diseaseName][day] = (newCounts[diseaseName][day] || 0) + 1;
           }
         });
 
         setDiseaseCounts(newCounts);
-        console.log('Loaded surveillance data:', data.data.length, 'records');
       }
     } catch (error) {
       console.error('Error loading surveillance data:', error);
     }
   };
 
-  const handleCountChange = function(disease, day, value) {
-    setDiseaseCounts(function(prev) {
-      var newState = JSON.parse(JSON.stringify(prev));
+  const handleCountChange = (disease: string, day: number, value: string): void => {
+    setDiseaseCounts((prev: DiseaseCounts) => {
+      const newState: DiseaseCounts = JSON.parse(JSON.stringify(prev));
       if (!newState[disease]) {
         newState[disease] = {};
       }
@@ -194,24 +199,24 @@ export default function DiseaseSurveillancePage() {
     });
   };
 
-  useEffect(function() {
+  useEffect(() => {
     initializeEmptyData();
     loadSurveillanceData();
   }, [selectedMonth, selectedYear, activeTab]);
 
-  useEffect(function() {
+  useEffect(() => {
     initializeEmptyData();
     loadSurveillanceData();
   }, []);
 
-  var diseases = getCurrentDiseases();
-  var days = getDaysInMonth();
-  var dayNumbers = [];
-  for (var i = 1; i <= days; i++) {
+  const diseases: string[] = getCurrentDiseases();
+  const days: number = getDaysInMonth();
+  const dayNumbers: number[] = [];
+  for (let i: number = 1; i <= days; i++) {
     dayNumbers.push(i);
   }
-  var totalDiseases = diseases.length;
-  var availableYears = getYears();
+  const totalDiseases: number = diseases.length;
+  const availableYears: number[] = getYears();
 
   return (
     <div className={styles.container}>
@@ -222,13 +227,13 @@ export default function DiseaseSurveillancePage() {
 
       <div className={styles.controls}>
         <div className={styles.selectGroup}>
-          <select value={selectedMonth} onChange={function(e) { setSelectedMonth(parseInt(e.target.value)); }}>
-            {monthNames.map(function(m, i) {
+          <select value={selectedMonth} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setSelectedMonth(parseInt(e.target.value)); }}>
+            {monthNames.map((m: string, i: number) => {
               return <option key={i} value={i}>{m}</option>;
             })}
           </select>
-          <select value={selectedYear} onChange={function(e) { setSelectedYear(parseInt(e.target.value)); }}>
-            {availableYears.map(function(y) {
+          <select value={selectedYear} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setSelectedYear(parseInt(e.target.value)); }}>
+            {availableYears.map((y: number) => {
               return <option key={y} value={y}>{y}</option>;
             })}
           </select>
@@ -237,13 +242,13 @@ export default function DiseaseSurveillancePage() {
         <div className={styles.tabs}>
           <button
             className={activeTab === 'adults' ? styles.active : ''}
-            onClick={function() { setActiveTab('adults'); }}
+            onClick={() => { setActiveTab('adults'); }}
           >
             Adults ({adultDiseases.length})
           </button>
           <button
             className={activeTab === 'children' ? styles.active : ''}
-            onClick={function() { setActiveTab('children'); }}
+            onClick={() => { setActiveTab('children'); }}
           >
             Children ({childrenDiseases.length})
           </button>
@@ -271,30 +276,30 @@ export default function DiseaseSurveillancePage() {
           <thead>
             <tr>
               <th className={styles.diseaseCol}>Disease</th>
-              {dayNumbers.map(function(day) {
+              {dayNumbers.map((day: number) => {
                 return <th key={day} className={styles.dayCol}>{day}</th>;
               })}
               <th className={styles.totalCol}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {diseases.map(function(disease) {
-              var total = 0;
-              for (var day = 1; day <= days; day++) {
+            {diseases.map((disease: string) => {
+              let total: number = 0;
+              for (let day: number = 1; day <= days; day++) {
                 total += diseaseCounts[disease]?.[day] || 0;
               }
-              var hasData = total > 0;
+              const hasData: boolean = total > 0;
               return (
                 <tr key={disease} className={hasData ? styles.hasData : ''}>
                   <td className={styles.diseaseCell}>{disease}</td>
-                  {dayNumbers.map(function(day) {
-                    var value = diseaseCounts[disease]?.[day] || 0;
+                  {dayNumbers.map((day: number) => {
+                    const value: number = diseaseCounts[disease]?.[day] || 0;
                     return (
                       <td key={day} className={styles.dataCell}>
                         <input
                           type="number"
                           value={value}
-                          onChange={function(e) { handleCountChange(disease, day, e.target.value); }}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => { handleCountChange(disease, day, e.target.value); }}
                           className={value > 0 ? styles.hasValue : ''}
                           min="0"
                         />
@@ -311,4 +316,5 @@ export default function DiseaseSurveillancePage() {
     </div>
   );
 }
+
 

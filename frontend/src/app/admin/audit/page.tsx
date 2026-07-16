@@ -61,7 +61,7 @@ export default function AuditPage() {
     if (!socket) return;
 
     const handleAuditUpdate = (data: any) => {
-      console.log('🔄 Real-time audit update:', data);
+      
       fetchLogs();
       fetchStats();
     };
@@ -369,3 +369,4 @@ export default function AuditPage() {
     </div>
   );
 }
+

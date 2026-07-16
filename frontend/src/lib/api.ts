@@ -1,7 +1,20 @@
+﻿// Store Google OAuth tokens from URL on first load - must run before any API calls
+if (typeof window !== 'undefined') {
+  const urlParams = new URLSearchParams(window.location.search);
+  const accessToken = urlParams.get('accessToken');
+  const refreshToken = urlParams.get('refreshToken');
+  const userId = urlParams.get('userId');
+  
+  if (accessToken && refreshToken && userId) {
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('userId', userId);
+    // URL cleaned by login page instead
+  }
+}
+
 import axios from 'axios';
-
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' }
@@ -16,12 +29,32 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Endpoints where a 401 means "invalid credentials," not "expired token" â€”
+// these should NEVER trigger a token refresh / auto-logout.
+const AUTH_ENDPOINTS_SKIP_REFRESH = [
+  '/auth/login',
+  '/auth/verify-super-admin',
+  '/auth/refresh',
+  '/auth/register-clinic',
+  '/auth/forgot-password',
+  '/auth/reset-password'
+];
+
 // Response interceptor to handle token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+
+    const isAuthEndpoint = AUTH_ENDPOINTS_SKIP_REFRESH.some((path) =>
+      originalRequest?.url?.includes(path)
+    );
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint
+    ) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refreshToken');
       const userId = localStorage.getItem('userId');

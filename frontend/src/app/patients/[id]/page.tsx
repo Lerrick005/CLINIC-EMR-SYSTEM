@@ -1,3 +1,4 @@
+
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -39,7 +40,7 @@ export default function PatientDetailPage() {
 
   const fetchPatient = async () => {
     try {
-      const res = await api.get(`/patients/${params.id}`);
+      const res = await api.get(`/patients/${params?.id}`);
       if (res.data.success) {
         const p = res.data.patient;
         setPatient(p);
@@ -65,7 +66,7 @@ export default function PatientDetailPage() {
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      await api.put(`/patients/${params.id}`, formData);
+      await api.put(`/patients/${params?.id}`, formData);
       setIsEditing(false);
       fetchPatient();
       alert('Patient updated');

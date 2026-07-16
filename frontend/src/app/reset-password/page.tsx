@@ -1,11 +1,11 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import styles from './reset-password.module.css';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [token, setToken] = useState('');
@@ -44,7 +44,8 @@ export default function ResetPasswordPage() {
     }
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/reset-password', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword: password })
@@ -72,7 +73,7 @@ export default function ResetPasswordPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1>ðŸ”’ Reset Password</h1>
+            <h1>🔒 Reset Password</h1>
             <p>Validating your reset link...</p>
           </div>
           <div style={{ textAlign: 'center', padding: '20px' }}>
@@ -88,11 +89,11 @@ export default function ResetPasswordPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1>âŒ Invalid Link</h1>
+            <h1>❌ Invalid Link</h1>
             <p>The password reset link is invalid or has expired.</p>
           </div>
           <Link href="/forgot-password" className={styles.backLink}>
-            Request a new reset link â†’
+            Request a new reset link →
           </Link>
         </div>
       </div>
@@ -104,7 +105,7 @@ export default function ResetPasswordPage() {
       <div className={styles.container}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <h1>âœ… Password Reset</h1>
+            <h1>✅ Password Reset</h1>
             <p>Your password has been reset successfully!</p>
           </div>
           <div className={styles.successMessage}>
@@ -122,7 +123,7 @@ export default function ResetPasswordPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.header}>
-          <h1>ðŸ”’ Reset Password</h1>
+          <h1>🔒 Reset Password</h1>
           <p>Enter your new password</p>
         </div>
 
@@ -157,10 +158,15 @@ export default function ResetPasswordPage() {
           </button>
 
           <div className={styles.footer}>
-            <p><Link href="/login">â† Back to Login</Link></p>
+            <p><Link href="/login">← Back to Login</Link></p>
           </div>
         </form>
       </div>
     </div>
   );
 }
+
+export const dynamic = 'force-dynamic';
+
+
+export default function ResetPasswordPage() { return <Suspense fallback={<div>Loading...</div>}><ResetPasswordContent /></Suspense>; }
