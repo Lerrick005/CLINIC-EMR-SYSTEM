@@ -33,7 +33,7 @@ const childrenDiseases = [
   "Downs Syndrome", "Autism", "Other Congenital Abnormalities", "Rickets", "Jiggers Infestation",
   "Meningococcal Meningitis", "Other Meningitis", "Tetanus", "Neonatal Tetanus", "Poliomyelitis (AFP)",
   "Chicken Pox", "Hepatitis", "Mumps", "Rubella", "Whooping Cough (Pertussis)", "Diphtheria",
-  "Amoebiasis", "Typhoid Fever", "Typhoid", "typhoid", "Brucellosis", "Leishmaniasis (Kala-azar)", "Cutaneous Leishmaniasis",
+  "Amoebiasis", "Typhoid Fever", "Typhoid", "Brucellosis", "Leishmaniasis (Kala-azar)", "Cutaneous Leishmaniasis",
   "Trypanosomiasis", "Bilharzia (Schistosomiasis)", "Hydatid Disease", "Rabies", "Anthrax",
   "Plague", "Relapsing Fever", "Scabies", "Ringworm", "Pediculosis", "Dental Disorders",
   "Eye Infections", "Ear Infections", "Poisoning", "Burns", "Fractures", "Other Injuries",

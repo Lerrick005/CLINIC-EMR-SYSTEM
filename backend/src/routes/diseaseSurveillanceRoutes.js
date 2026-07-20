@@ -10,7 +10,7 @@ const adultDiseases = [
   'Meningococcal Meningitis', 'Other Meningitis', 'Tetanus', 'Poliomyelitis',
   'Chicken Pox', 'Measles', 'Hepatitis', 'Mumps',
   'Suspected Malaria', 'Confirmed Malaria', 'Malaria', 'MALARIA',
-  'Malaria in Pregnancy', 'Amoebiasis', 'Typhoid Fever', 'Typhoid', 'typhoid',
+  'Malaria in Pregnancy', 'Amoebiasis', 'Typhoid Fever', 'Typhoid', 
   'Sexually Transmitted Infection', 'Urinary Tract Infection',
   'Bilharzia', 'Intestinal Worms', 'Malnutrition',
   'Anaemia', 'Eye Infection', 'Ear Infection', 'Upper Respiratory Tract Infection',

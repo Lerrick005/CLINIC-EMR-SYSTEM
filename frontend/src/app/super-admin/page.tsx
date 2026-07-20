@@ -1,5 +1,4 @@
-﻿
-'use client';
+﻿'use client';
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -127,7 +126,12 @@ function SuperAdminContent() {
   const handleCreateClinic = async (e: React.FormEvent) => {
     e.preventDefault(); setSubmitting(true);
     try {
-      await api.post('/super-admin/clinics', { ...formData, isLegacy: formData.subscriptionType === 'LEGACY' });
+      console.log('SENDING TO BACKEND:', JSON.stringify(formData));
+      await api.post('/super-admin/clinics', { 
+        ...formData, 
+        isLegacy: formData.subscriptionType === 'LEGACY', 
+        subscriptionType: formData.subscriptionType 
+      });
       showToast('Clinic created successfully!', 'success');
       setShowCreate(false); setFormData({ name: '', mflCode: '', county: '', subcounty: '', ward: '', address: '', phone: '', email: '', adminEmail: '', adminPassword: '', adminFirstName: '', adminLastName: '', subscriptionType: 'TRIAL' }); fetchClinics();
     } catch (e: any) { showToast(e.response?.data?.error || 'Failed to create clinic', 'error'); }
@@ -161,11 +165,11 @@ function SuperAdminContent() {
   };
 
   const handlePermanentDelete = async (clinicId: string, clinicName: string) => {
-    if (!confirm(`PERMANENTLY DELETE ${clinicName}?`)) return;
-    const c = prompt(`Type "${clinicName}" to confirm:`);
+    if (!confirm(`⚠️ PERMANENTLY DELETE "${clinicName}"?\n\nThis will permanently remove ALL data including:\n- All patients\n- All consultations\n- All prescriptions\n- All lab orders and results\n- All users\n- All audit logs\n\nThis action CANNOT be undone!`)) return;
+    const c = prompt(`Type "${clinicName}" to confirm permanent deletion:`);
     if (c !== clinicName) return;
-    try { await api.delete(`/super-admin/clinics/${clinicId}/permanent`); showToast('Deleted', 'success'); fetchClinics(); }
-    catch { showToast('Failed', 'error'); }
+    try { await api.delete(`/super-admin/clinics/${clinicId}/permanent`); showToast('Clinic permanently deleted', 'success'); fetchClinics(); }
+    catch (e: any) { showToast(e.response?.data?.error || 'Failed to delete clinic', 'error'); }
   };
 
   const handleViewUsers = async (clinicId: string, clinicName: string) => {
@@ -216,7 +220,20 @@ function SuperAdminContent() {
                   <td>{clinic.user_count || 0}</td>
                   <td>{clinic.patient_count || 0}</td>
                   <td><span className={`${styles.badge} ${badgeClass(clinic.subscription_status || 'TRIAL')}`}>{clinic.subscription_status || 'TRIAL'}</span>{!clinic.is_active && <span className={`${styles.badge} ${styles.badgeInactive}`} style={{ marginLeft: 4 }}>Inactive</span>}</td>
-                  <td><div className={styles.actionBtns}><button className={styles.iconBtn} onClick={() => handleViewUsers(clinic.id, clinic.name)} title="View Users"><Eye size={15} /></button><button className={styles.iconBtn} onClick={() => { setEditingClinic(clinic); setEditForm({ name: clinic.name || '', mflCode: clinic.mfl_code || '', county: clinic.county || '', subcounty: clinic.subcounty || '', ward: clinic.ward || '', address: clinic.address || '', phone: clinic.phone || '', email: clinic.email || '', is_active: clinic.is_active }); setShowEdit(true); }} title="Edit"><Edit3 size={15} /></button>{clinic.is_active ? <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => handleDeactivateClinic(clinic.id, clinic.name)} title="Deactivate"><Trash2 size={15} /></button> : <button className={`${styles.iconBtn} ${styles.iconBtnSuccess}`} onClick={() => handleReactivateClinic(clinic.id, clinic.name)} title="Reactivate"><RotateCcw size={15} /></button>}</div></td>
+                  <td>
+                    <div className={styles.actionBtns}>
+                      <button className={styles.iconBtn} onClick={() => handleViewUsers(clinic.id, clinic.name)} title="View Users"><Eye size={15} /></button>
+                      <button className={styles.iconBtn} onClick={() => { setEditingClinic(clinic); setEditForm({ name: clinic.name || '', mflCode: clinic.mfl_code || '', county: clinic.county || '', subcounty: clinic.subcounty || '', ward: clinic.ward || '', address: clinic.address || '', phone: clinic.phone || '', email: clinic.email || '', is_active: clinic.is_active }); setShowEdit(true); }} title="Edit"><Edit3 size={15} /></button>
+                      {clinic.is_active ? (
+                        <>
+                          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => handleDeactivateClinic(clinic.id, clinic.name)} title="Deactivate"><Trash2 size={15} /></button>
+                          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => handlePermanentDelete(clinic.id, clinic.name)} title="Delete Forever" style={{ background: '#DC2626', color: 'white', border: 'none' }}>💀</button>
+                        </>
+                      ) : (
+                        <button className={`${styles.iconBtn} ${styles.iconBtnSuccess}`} onClick={() => handleReactivateClinic(clinic.id, clinic.name)} title="Reactivate"><RotateCcw size={15} /></button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -306,4 +323,3 @@ export default function SuperAdminPage() {
 }
 
 export const dynamic = 'force-dynamic';
-

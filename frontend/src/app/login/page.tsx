@@ -23,6 +23,7 @@ export default function LoginPage() {
       localStorage.setItem('accessToken', token);
       localStorage.setItem('refreshToken', params.get('refreshToken') || '');
       localStorage.setItem('userId', params.get('userId') || '');
+      document.cookie = 'accessToken=' + token + '; path=/; max-age=86400';
       
       fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': 'Bearer ' + token }
@@ -31,9 +32,13 @@ export default function LoginPage() {
       .then(data => {
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
-          document.cookie = 'user=' + JSON.stringify(data.user) + '; path=/; max-age=86400';
-          window.location.href = data.user.role === 'SUPER_ADMIN' ? '/super-admin' : '/dashboard';
+          document.cookie = 'user=' + encodeURIComponent(JSON.stringify(data.user)) + '; path=/; max-age=86400';
+          const redirectTo = data.user.role === 'SUPER_ADMIN' ? '/super-admin' : '/dashboard';
+          window.location.replace(redirectTo);
         }
+      })
+      .catch(() => {
+        window.location.href = '/login';
       });
     }
   }
@@ -57,13 +62,14 @@ export default function LoginPage() {
       localStorage.setItem('refreshToken', res.data.refreshToken);
       localStorage.setItem('userId', res.data.user.id);
       localStorage.setItem('user', JSON.stringify(res.data.user));
+      document.cookie = 'user=' + encodeURIComponent(JSON.stringify(res.data.user)) + '; path=/; max-age=86400';
       redirectingRef.current = true;
 
-      if (res.data.user.role === 'SUPER_ADMIN') { window.location.href = '/super-admin'; return; }
+      if (res.data.user.role === 'SUPER_ADMIN') { window.location.replace('/super-admin'); return; }
 
       try {
         const setupRes = await api.get('/setup/status');
-        window.location.href = setupRes.data.completed ? '/dashboard' : '/setup';
+        window.location.replace(setupRes.data.completed ? '/dashboard' : '/setup');
       } catch (setupErr) {
         setError('Login succeeded but could not load dashboard.');
         setLoading(false); redirectingRef.current = false;
@@ -125,5 +131,4 @@ export default function LoginPage() {
     </div>
   );
 }
-
 

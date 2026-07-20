@@ -9,7 +9,7 @@ if (typeof window !== 'undefined') {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('userId', userId);
-    // URL cleaned by login page instead
+    // DO NOT clean the URL - login page needs to read it too
   }
 }
 
@@ -29,8 +29,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Endpoints where a 401 means "invalid credentials," not "expired token" â€”
-// these should NEVER trigger a token refresh / auto-logout.
+// Endpoints where a 401 means "invalid credentials," not "expired token"
 const AUTH_ENDPOINTS_SKIP_REFRESH = [
   '/auth/login',
   '/auth/verify-super-admin',

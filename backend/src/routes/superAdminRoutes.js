@@ -40,7 +40,22 @@ router.get('/test', isSuperAdmin, async (req, res) => {
 router.post('/clinics', isSuperAdmin, async (req, res) => {
   try {
     const db = req.db;
-    const { name, mflCode, county, subcounty, ward, address, phone, email, adminEmail, adminPassword, adminFirstName, adminLastName, isLegacy = false } = req.body;
+    const { 
+      name, 
+      mflCode, 
+      county, 
+      subcounty, 
+      ward, 
+      address, 
+      phone, 
+      email, 
+      adminEmail, 
+      adminPassword, 
+      adminFirstName, 
+      adminLastName, 
+      isLegacy = false, 
+      subscriptionType = 'TRIAL' 
+    } = req.body;
 
     if (!name) return res.status(400).json({ error: 'Clinic name is required' });
     if (!adminEmail || !adminPassword) return res.status(400).json({ error: 'Admin email and password are required' });
@@ -53,24 +68,61 @@ router.post('/clinics', isSuperAdmin, async (req, res) => {
     if (existingUser) return res.status(400).json({ error: 'Admin email already registered' });
 
     const clinicId = uuidv4();
+    
+    // Determine subscription end date
+    let subscriptionEndsAt = null;
+    if (subscriptionType === 'PAID') {
+      subscriptionEndsAt = null; // PAID has no end date
+    } else if (isLegacy) {
+      subscriptionEndsAt = null; // LEGACY has no end date
+    } else {
+      subscriptionEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // TRIAL: 14 days
+    }
+
     await db('clinics').insert({
-      id: clinicId, name, mfl_code: mflCode || '', county: county || '', subcounty: subcounty || '',
-      ward: ward || '', address: address || '', phone: phone || '', email: email || '',
-      is_active: true, is_legacy: isLegacy || false,
-      subscription_status: isLegacy ? 'LEGACY' : 'TRIAL',
-      subscription_ends_at: isLegacy ? null : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-      created_at: db.fn.now(), updated_at: db.fn.now()
+      id: clinicId, 
+      name, 
+      mfl_code: mflCode || '', 
+      county: county || '', 
+      subcounty: subcounty || '',
+      ward: ward || '', 
+      address: address || '', 
+      phone: phone || '', 
+      email: email || '',
+      is_active: true, 
+      is_legacy: isLegacy || false,
+      subscription_status: subscriptionType || 'TRIAL',
+      subscription_ends_at: subscriptionEndsAt,
+      created_at: db.fn.now(), 
+      updated_at: db.fn.now()
     });
 
     const hashedPassword = await bcrypt.hash(adminPassword, 10);
     const userId = uuidv4();
     await db('users').insert({
-      id: userId, clinic_id: clinicId, email: adminEmail, password_hash: hashedPassword,
-      first_name: adminFirstName || 'Clinic', last_name: adminLastName || 'Admin',
-      role: 'CLINIC_ADMIN', is_active: true, created_at: db.fn.now(), updated_at: db.fn.now()
+      id: userId, 
+      clinic_id: clinicId, 
+      email: adminEmail, 
+      password_hash: hashedPassword,
+      first_name: adminFirstName || 'Clinic', 
+      last_name: adminLastName || 'Admin',
+      role: 'CLINIC_ADMIN', 
+      is_active: true, 
+      created_at: db.fn.now(), 
+      updated_at: db.fn.now()
     });
 
-    res.status(201).json({ success: true, message: 'Clinic created', clinic: { id: clinicId, name }, admin: { email: adminEmail } });
+    res.status(201).json({ 
+      success: true, 
+      message: 'Clinic created', 
+      clinic: { 
+        id: clinicId, 
+        name,
+        subscription_status: subscriptionType,
+        subscription_ends_at: subscriptionEndsAt
+      }, 
+      admin: { email: adminEmail } 
+    });
   } catch (err) {
     console.error('Error creating clinic:', err);
     res.status(500).json({ error: err.message });
@@ -84,8 +136,50 @@ router.put('/clinics/:id', isSuperAdmin, async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
-    const { name, mflCode, county, subcounty, ward, address, phone, email, is_active, is_legacy, subscription_status } = req.body;
-    await db('clinics').where({ id }).update({ name, mfl_code: mflCode, county, subcounty, ward, address, phone, email, is_active, is_legacy, subscription_status, updated_at: db.fn.now() });
+    const { 
+      name, 
+      mflCode, 
+      county, 
+      subcounty, 
+      ward, 
+      address, 
+      phone, 
+      email, 
+      is_active, 
+      is_legacy, 
+      subscription_status 
+    } = req.body;
+
+    // If updating to PAID, clear the expiration date
+    let updateData = {
+      name, 
+      mfl_code: mflCode, 
+      county, 
+      subcounty, 
+      ward, 
+      address, 
+      phone, 
+      email, 
+      is_active, 
+      is_legacy, 
+      subscription_status,
+      updated_at: db.fn.now()
+    };
+
+    // If subscription is PAID, set subscription_ends_at to null
+    if (subscription_status === 'PAID') {
+      updateData.subscription_ends_at = null;
+    } else if (subscription_status === 'LEGACY') {
+      updateData.subscription_ends_at = null;
+    } else if (subscription_status === 'TRIAL') {
+      // If switching to TRIAL, set a new 14-day expiration if null
+      const clinic = await db('clinics').where({ id }).first();
+      if (!clinic.subscription_ends_at) {
+        updateData.subscription_ends_at = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    await db('clinics').where({ id }).update(updateData);
     res.json({ success: true, message: 'Clinic updated' });
   } catch (err) {
     console.error('Error updating clinic:', err);
@@ -171,7 +265,7 @@ router.delete('/clinics/:id/permanent', isSuperAdmin, async (req, res) => {
     // Delete all related data
     await db('audit_logs').where({ clinic_id: id }).del();
     await db('notifications').where({ clinic_id: id }).del();
-    await db('lab_results').whereIn('lab_order_id', db('lab_orders').where({ clinic_id: id }).select('id')).del();
+    await db('lab_results').whereIn('order_id', db('lab_orders').where({ clinic_id: id }).select('id')).del();
     await db('lab_orders').where({ clinic_id: id }).del();
     await db('prescriptions').where({ clinic_id: id }).del();
     await db('consultations').where({ clinic_id: id }).del();
