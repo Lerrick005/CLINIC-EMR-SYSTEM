@@ -1,6 +1,9 @@
 // Emergency Super Admin Recovery
 const bcrypt = require('bcryptjs');
-const knex = require('knex')(require('./knexfile').development);
+
+const knexConfig = require('./knexfile');
+const environment = process.env.NODE_ENV || 'development';
+const knex = require('knex')(knexConfig[environment]);
 
 async function recover() {
   const email = 'lerrickmushasha@gmail.com';
